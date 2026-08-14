@@ -24,7 +24,7 @@ public class AuditLog extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "audit_log_id_generator")
-    @SequenceGenerator(name = "audit_log_id_generator", sequenceName = "audit_logs_seq", allocationSize = 50)
+    @SequenceGenerator(name = "audit_log_id_generator", sequenceName = "audit_logs_seq", allocationSize = 1)
     private Long id;
 
     @Column(name = "actor_id")

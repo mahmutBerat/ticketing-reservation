@@ -73,7 +73,7 @@ CREATE TABLE idempotency_keys (
     CONSTRAINT fk_idempotency_keys_actor FOREIGN KEY (actor_id) REFERENCES app_users (id),
     CONSTRAINT uk_idempotency_keys_scope UNIQUE (actor_id, endpoint, idempotency_key),
     CONSTRAINT ck_idempotency_keys_status CHECK (status IN ('PROCESSING', 'COMPLETED')),
-    CONSTRAINT ck_idempotency_keys_request_hash CHECK (request_hash ~ '^[0-9a-f]{64}$'),
+    CONSTRAINT ck_idempotency_keys_request_hash CHECK (request_hash REGEXP '^[0-9a-f]{64}$'),
     CONSTRAINT ck_idempotency_keys_response_status CHECK (response_status IS NULL OR response_status BETWEEN 100 AND 599)
 );
 

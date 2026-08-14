@@ -34,7 +34,7 @@ public class IdempotencyKey extends BaseEntity {
     @SequenceGenerator(
             name = "idempotency_key_id_generator",
             sequenceName = "idempotency_keys_seq",
-            allocationSize = 50)
+            allocationSize = 1)
     private Long id;
 
     @Column(name = "actor_id", nullable = false)

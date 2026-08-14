@@ -32,7 +32,7 @@ public class User extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "user_id_generator")
-    @SequenceGenerator(name = "user_id_generator", sequenceName = "app_users_seq")
+    @SequenceGenerator(name = "user_id_generator", sequenceName = "app_users_seq", allocationSize = 1)
     private Long id;
 
     @Column(nullable = false, length = 320, unique = true)

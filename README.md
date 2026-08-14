@@ -1,5 +1,18 @@
 # Ticketing Reservation API
 
+## Local Database
+
+The application uses a file-backed H2 database by default. Start it without any
+external database or Docker dependency:
+
+```bash
+./gradlew bootRun
+```
+
+Local data is stored under `./data`. Set `DB_URL`, `DB_USERNAME`, and
+`DB_PASSWORD` to override the connection. Integration tests use an in-memory H2
+database and require no container runtime.
+
 ## Development Seed Users
 
 Liquibase creates the following users when the `dev` or `test` context is active. All three accounts use the password `ChangeMe123!`.
