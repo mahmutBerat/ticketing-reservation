@@ -5,6 +5,7 @@ import com.mbi.ticketingreservation.auth.api.LoginRequest;
 import com.mbi.ticketingreservation.auth.api.RefreshTokenRequest;
 import com.mbi.ticketingreservation.auth.api.RegisterRequest;
 import com.mbi.ticketingreservation.auth.api.TokenPairResponse;
+import com.mbi.ticketingreservation.auth.api.UpdateUserRolesRequest;
 import com.mbi.ticketingreservation.auth.api.UserMapper;
 import com.mbi.ticketingreservation.auth.api.UserResponse;
 import com.mbi.ticketingreservation.auth.domain.User;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -60,6 +62,20 @@ public class AuthService {
         Long userId = tokenService.readRefreshTokenSubject(request.refreshToken());
         User user = userService.findById(userId).orElseThrow(InvalidRefreshTokenException::new);
         return tokenService.createAccessToken(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserResponse> getAllUsers() {
+        return userService.findAll().stream()
+                .map(userMapper::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public UserResponse updateUserRoles(Long userId, UpdateUserRolesRequest request) {
+        User user = userService.findById(userId).orElseThrow(UserNotFoundException::new);
+        user.replaceRoles(request.roles());
+        return userMapper.toResponse(user);
     }
 
     private String normalizeEmail(String email) {

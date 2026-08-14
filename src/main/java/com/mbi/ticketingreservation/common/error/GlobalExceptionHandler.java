@@ -3,7 +3,11 @@ package com.mbi.ticketingreservation.common.error;
 import com.mbi.ticketingreservation.auth.application.EmailAlreadyRegisteredException;
 import com.mbi.ticketingreservation.auth.application.InvalidCredentialsException;
 import com.mbi.ticketingreservation.auth.application.InvalidRefreshTokenException;
+import com.mbi.ticketingreservation.auth.application.UserNotFoundException;
+import com.mbi.ticketingreservation.auth.domain.AdminRolesImmutableException;
 import com.mbi.ticketingreservation.common.error.ApiError.FieldValidationError;
+import com.mbi.ticketingreservation.event.application.EventNotFoundException;
+import com.mbi.ticketingreservation.event.domain.InvalidEventStateException;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
@@ -11,10 +15,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -54,6 +67,76 @@ public class GlobalExceptionHandler {
                 HttpStatus.UNAUTHORIZED,
                 ApiError.INVALID_REFRESH_TOKEN,
                 exception.getMessage(),
+                List.of());
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    ResponseEntity<ApiError> handleUserNotFound(UserNotFoundException exception) {
+        return errorResponse(
+                HttpStatus.NOT_FOUND,
+                ApiError.USER_NOT_FOUND,
+                exception.getMessage(),
+                List.of());
+    }
+
+    @ExceptionHandler(AdminRolesImmutableException.class)
+    ResponseEntity<ApiError> handleAdminRolesImmutable(AdminRolesImmutableException exception) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ApiError.ADMIN_ROLES_IMMUTABLE,
+                exception.getMessage(),
+                List.of());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ApiError> handleAccessDenied() {
+        return errorResponse(
+                HttpStatus.FORBIDDEN,
+                ApiError.ACCESS_DENIED,
+                "You are not authorized to perform this operation",
+                List.of());
+    }
+
+    @ExceptionHandler(EventNotFoundException.class)
+    ResponseEntity<ApiError> handleEventNotFound(EventNotFoundException exception) {
+        return errorResponse(
+                HttpStatus.NOT_FOUND,
+                ApiError.EVENT_NOT_FOUND,
+                exception.getMessage(),
+                List.of());
+    }
+
+    @ExceptionHandler(InvalidEventStateException.class)
+    ResponseEntity<ApiError> handleInvalidEventState(InvalidEventStateException exception) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ApiError.INVALID_EVENT_STATE,
+                exception.getMessage(),
+                List.of());
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    ResponseEntity<ApiError> handleEndpointNotFound() {
+        return errorResponse(
+                HttpStatus.NOT_FOUND,
+                ApiError.ENDPOINT_NOT_FOUND,
+                "API endpoint not found",
+                List.of());
+    }
+
+    @ExceptionHandler({
+            HttpRequestMethodNotSupportedException.class,
+            HttpMediaTypeNotSupportedException.class,
+            HttpMediaTypeNotAcceptableException.class,
+            ServletRequestBindingException.class,
+            MethodArgumentTypeMismatchException.class,
+            HandlerMethodValidationException.class
+    })
+    ResponseEntity<ApiError> handleInvalidRequest() {
+        return errorResponse(
+                HttpStatus.BAD_REQUEST,
+                ApiError.INVALID_REQUEST,
+                "Request is invalid or unsupported",
                 List.of());
     }
 

@@ -20,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -170,6 +171,23 @@ class AuthServiceTest {
         assertThrows(InvalidRefreshTokenException.class, () -> authService.refresh(request));
 
         verify(tokenService, never()).createAccessToken(org.mockito.ArgumentMatchers.any(User.class));
+    }
+
+    @Test
+    void returnsAllUsersWithTheirIds() {
+        User admin = new User("admin@example.com", "password-hash", Set.of(Role.ADMIN));
+        User customer = createCustomerUser("customer@example.com", "password-hash");
+        UserResponse adminResponse = new UserResponse(1L, "admin@example.com", Set.of(Role.ADMIN), NOW, null);
+        UserResponse customerResponse = new UserResponse(
+                2L, "customer@example.com", Set.of(Role.CUSTOMER), NOW, null);
+        when(userService.findAll()).thenReturn(List.of(admin, customer));
+        when(userMapper.toResponse(admin)).thenReturn(adminResponse);
+        when(userMapper.toResponse(customer)).thenReturn(customerResponse);
+
+        List<UserResponse> response = authService.getAllUsers();
+
+        assertEquals(List.of(adminResponse, customerResponse), response);
+        assertEquals(List.of(1L, 2L), response.stream().map(UserResponse::id).toList());
     }
 
     private User createOrganizerUser() {

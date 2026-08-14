@@ -3,6 +3,8 @@ package com.mbi.ticketingreservation.common.error;
 import com.mbi.ticketingreservation.auth.application.EmailAlreadyRegisteredException;
 import com.mbi.ticketingreservation.auth.application.InvalidCredentialsException;
 import com.mbi.ticketingreservation.auth.application.InvalidRefreshTokenException;
+import com.mbi.ticketingreservation.event.application.EventNotFoundException;
+import com.mbi.ticketingreservation.event.domain.InvalidEventStateException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import io.micrometer.tracing.Span;
@@ -101,6 +103,46 @@ class GlobalExceptionHandlerTest {
 
         assertError(response, HttpStatus.UNAUTHORIZED, ApiError.INVALID_REFRESH_TOKEN,
                 "Refresh token is invalid or expired");
+    }
+
+    @Test
+    void mapsAccessDeniedToForbidden() {
+        ResponseEntity<ApiError> response = exceptionHandler
+                .handleAccessDenied();
+
+        assertError(response, HttpStatus.FORBIDDEN, ApiError.ACCESS_DENIED,
+                "You are not authorized to perform this operation");
+    }
+
+    @Test
+    void mapsEventNotFoundToNotFound() {
+        ResponseEntity<ApiError> response = exceptionHandler.handleEventNotFound(new EventNotFoundException());
+
+        assertError(response, HttpStatus.NOT_FOUND, ApiError.EVENT_NOT_FOUND, "Event not found");
+    }
+
+    @Test
+    void mapsInvalidEventStateToConflict() {
+        ResponseEntity<ApiError> response = exceptionHandler.handleInvalidEventState(
+                new InvalidEventStateException("Only a complete event can be published"));
+
+        assertError(response, HttpStatus.CONFLICT, ApiError.INVALID_EVENT_STATE,
+                "Only a complete event can be published");
+    }
+
+    @Test
+    void mapsUnknownEndpointToNotFound() {
+        ResponseEntity<ApiError> response = exceptionHandler.handleEndpointNotFound();
+
+        assertError(response, HttpStatus.NOT_FOUND, ApiError.ENDPOINT_NOT_FOUND,
+                "API endpoint not found");
+    }
+
+    @Test
+    void mapsUnsupportedRequestVariantsToClientErrors() {
+        assertError(exceptionHandler.handleInvalidRequest(),
+                HttpStatus.BAD_REQUEST, ApiError.INVALID_REQUEST,
+                "Request is invalid or unsupported");
     }
 
     @Test

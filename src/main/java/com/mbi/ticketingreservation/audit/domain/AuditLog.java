@@ -19,6 +19,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AuditLog extends BaseEntity {
 
+    private static final int MAX_IP_LENGTH = 45;
+    private static final int MAX_USER_AGENT_LENGTH = 512;
+
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "audit_log_id_generator")
     @SequenceGenerator(name = "audit_log_id_generator", sequenceName = "audit_logs_seq", allocationSize = 50)
@@ -54,8 +57,8 @@ public class AuditLog extends BaseEntity {
         this.action = requireText(action, "action");
         this.resourceType = requireText(resourceType, "resourceType");
         this.resourceId = resourceId;
-        this.ip = trimToNull(ip);
-        this.userAgent = trimToNull(userAgent);
+        this.ip = trim(trimToNull(ip), MAX_IP_LENGTH);
+        this.userAgent = trim(trimToNull(userAgent), MAX_USER_AGENT_LENGTH);
     }
 
     private static String requireText(String value, String fieldName) {
@@ -68,5 +71,9 @@ public class AuditLog extends BaseEntity {
 
     private static String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String trim(String value, int maxLength) {
+        return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 }

@@ -3,8 +3,10 @@ package com.mbi.ticketingreservation.auth.application;
 import com.mbi.ticketingreservation.auth.domain.User;
 import com.mbi.ticketingreservation.auth.persistence.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -23,6 +25,10 @@ public class UserService {
 
     public Optional<User> findById(Long id) {
         return userRepository.findById(id);
+    }
+
+    public List<User> findAll() {
+        return userRepository.findAll(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     public User save(User user) {

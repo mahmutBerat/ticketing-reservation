@@ -68,6 +68,17 @@ public class User extends BaseEntity {
         return Collections.unmodifiableSet(roles);
     }
 
+    public void replaceRoles(Set<Role> roles) {
+        Objects.requireNonNull(roles, "roles must not be null");
+        if (roles.isEmpty()) {
+            throw new IllegalArgumentException("roles must not be empty");
+        }
+        if (this.roles.contains(Role.ADMIN)) {
+            throw new AdminRolesImmutableException();
+        }
+        this.roles = EnumSet.copyOf(roles);
+    }
+
     private static String requireText(String value, String fieldName) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(fieldName + " must not be blank");

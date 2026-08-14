@@ -2,6 +2,8 @@ package com.mbi.ticketingreservation.common.validation;
 
 import com.mbi.ticketingreservation.auth.api.RegisterRequest;
 import com.mbi.ticketingreservation.event.api.CreateEventRequest;
+import com.mbi.ticketingreservation.event.api.PublicEventQuery;
+import com.mbi.ticketingreservation.event.api.UpdateEventRequest;
 import com.mbi.ticketingreservation.reservation.api.CreateReservationRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -50,6 +52,28 @@ class ApiDtoValidationTest {
                 0);
 
         assertEquals(Set.of("capacity", "dateRangeValid"), violatedProperties(request));
+    }
+
+    @Test
+    void validatesEventUpdateCapacityAndDateRange() {
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Concert",
+                "Main Hall",
+                Instant.parse("2030-06-01T20:00:00Z"),
+                Instant.parse("2030-06-01T18:00:00Z"),
+                0);
+
+        assertEquals(Set.of("capacity", "dateRangeValid"), violatedProperties(request));
+    }
+
+    @Test
+    void validatesPublicEventQueryDateRangeAndTextLength() {
+        PublicEventQuery query = new PublicEventQuery(
+                Instant.parse("2030-06-01T20:00:00Z"),
+                Instant.parse("2030-06-01T18:00:00Z"),
+                "q".repeat(256));
+
+        assertEquals(Set.of("dateRangeValid", "q"), violatedProperties(query));
     }
 
     @Test
