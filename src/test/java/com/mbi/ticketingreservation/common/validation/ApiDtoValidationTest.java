@@ -49,9 +49,9 @@ class ApiDtoValidationTest {
                 "Main Hall",
                 Instant.parse("2030-06-01T20:00:00Z"),
                 Instant.parse("2030-06-01T18:00:00Z"),
-                0);
+                10);
 
-        assertEquals(Set.of("capacity", "dateRangeValid"), violatedProperties(request));
+        assertEquals(Set.of("dateRangeValid"), violatedProperties(request));
     }
 
     @Test

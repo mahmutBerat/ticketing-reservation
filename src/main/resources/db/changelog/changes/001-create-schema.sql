@@ -65,16 +65,13 @@ CREATE TABLE idempotency_keys (
     endpoint VARCHAR(255) NOT NULL,
     idempotency_key VARCHAR(255) NOT NULL,
     request_hash VARCHAR(64) NOT NULL,
-    response_status INTEGER,
-    response_body TEXT,
     status VARCHAR(32) NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     CONSTRAINT fk_idempotency_keys_actor FOREIGN KEY (actor_id) REFERENCES app_users (id),
     CONSTRAINT uk_idempotency_keys_scope UNIQUE (actor_id, endpoint, idempotency_key),
     CONSTRAINT ck_idempotency_keys_status CHECK (status IN ('PROCESSING', 'COMPLETED')),
-    CONSTRAINT ck_idempotency_keys_request_hash CHECK (request_hash REGEXP '^[0-9a-f]{64}$'),
-    CONSTRAINT ck_idempotency_keys_response_status CHECK (response_status IS NULL OR response_status BETWEEN 100 AND 599)
+    CONSTRAINT ck_idempotency_keys_request_hash CHECK (request_hash REGEXP '^[0-9a-f]{64}$')
 );
 
 CREATE INDEX ix_idempotency_keys_expiry ON idempotency_keys (expires_at);

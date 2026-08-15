@@ -2,15 +2,16 @@ package com.mbi.ticketingreservation.audit.application;
 
 import com.mbi.ticketingreservation.audit.domain.AuditLog;
 import com.mbi.ticketingreservation.audit.persistence.AuditLogRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,12 +21,8 @@ class AuditServiceTest {
     @Mock
     private AuditLogRepository auditLogRepository;
 
+    @InjectMocks
     private AuditService auditService;
-
-    @BeforeEach
-    void setUp() {
-        auditService = new AuditService(auditLogRepository);
-    }
 
     @Test
     void savesAuditRecord() {
@@ -44,7 +41,7 @@ class AuditServiceTest {
 
     @Test
     void propagatesRepositoryFailure() {
-        when(auditLogRepository.save(org.mockito.ArgumentMatchers.any(AuditLog.class)))
+        when(auditLogRepository.save(any(AuditLog.class)))
                 .thenThrow(new IllegalStateException("database unavailable"));
 
         assertThrows(IllegalStateException.class,

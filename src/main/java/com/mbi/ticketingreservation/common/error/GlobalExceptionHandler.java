@@ -8,6 +8,8 @@ import com.mbi.ticketingreservation.auth.domain.AdminRolesImmutableException;
 import com.mbi.ticketingreservation.common.error.ApiError.FieldValidationError;
 import com.mbi.ticketingreservation.event.application.EventNotFoundException;
 import com.mbi.ticketingreservation.event.domain.InvalidEventStateException;
+import com.mbi.ticketingreservation.reservation.application.*;
+import com.mbi.ticketingreservation.reservation.domain.InvalidReservationStateException;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
@@ -112,6 +115,49 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT,
                 ApiError.INVALID_EVENT_STATE,
                 exception.getMessage(),
+                List.of());
+    }
+
+    @ExceptionHandler(EventCapacityExceededException.class)
+    ResponseEntity<ApiError> handleEventCapacityExceeded(EventCapacityExceededException exception) {
+        return errorResponse(HttpStatus.CONFLICT, ApiError.EVENT_CAPACITY_EXCEEDED, exception.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(ActiveReservationExistsException.class)
+    ResponseEntity<ApiError> handleActiveReservationExists(ActiveReservationExistsException exception) {
+        return errorResponse(HttpStatus.CONFLICT, ApiError.ACTIVE_RESERVATION_EXISTS, exception.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    ResponseEntity<ApiError> handleIdempotencyConflict(IdempotencyConflictException exception) {
+        return errorResponse(HttpStatus.CONFLICT, ApiError.IDEMPOTENCY_KEY_REUSED, exception.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(InvalidIdempotencyKeyException.class)
+    ResponseEntity<ApiError> handleInvalidIdempotencyKey(InvalidIdempotencyKeyException exception) {
+        return errorResponse(HttpStatus.BAD_REQUEST, ApiError.INVALID_IDEMPOTENCY_KEY, exception.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(ReservationNotFoundException.class)
+    ResponseEntity<ApiError> handleReservationNotFound(ReservationNotFoundException exception) {
+        return errorResponse(HttpStatus.NOT_FOUND, ApiError.RESERVATION_NOT_FOUND, exception.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(InvalidReservationStateException.class)
+    ResponseEntity<ApiError> handleInvalidReservationState(InvalidReservationStateException exception) {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ApiError.INVALID_RESERVATION_STATE,
+                exception.getMessage(),
+                List.of());
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    ResponseEntity<ApiError> handleReservationConflict() {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ApiError.RESERVATION_CONFLICT,
+                "The reservation or event changed concurrently; retry the request",
                 List.of());
     }
 

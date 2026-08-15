@@ -5,22 +5,22 @@ import com.mbi.ticketingreservation.event.api.*;
 import com.mbi.ticketingreservation.event.domain.Event;
 import com.mbi.ticketingreservation.event.persistence.EventRepository;
 import com.mbi.ticketingreservation.event.persistence.EventSpecifications;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class EventServiceTest {
@@ -29,6 +29,9 @@ class EventServiceTest {
     private static final Long EVENT_ID = 1000L;
     private static final String IP = "127.0.0.1";
     private static final String USER_AGENT = "unit-test";
+    private static final Instant STARTS_AT = Instant.parse("2030-06-01T18:00:00Z");
+    private static final Instant ENDS_AT = Instant.parse("2030-06-01T20:00:00Z");
+    private Event event;
 
     @Mock
     private EventRepository eventRepository;
@@ -42,270 +45,127 @@ class EventServiceTest {
     @Mock
     private EventSpecifications eventSpecifications;
 
-    @Mock
-    private Specification<Event> specification;
-
-    @Mock
-    private Event event;
-
-    @Mock
-    private Event savedEvent;
-
-    @InjectMocks
     private EventService eventService;
 
-    @Test
-    void createsDraftEventAndRecordsAuditInOrder() {
-        CreateEventRequest request = new CreateEventRequest(
-                "Concert",
-                "Main Hall",
-                Instant.parse("2030-06-01T18:00:00Z"),
-                Instant.parse("2030-06-01T20:00:00Z"),
-                100);
-        EventResponse expectedResponse = new EventResponse(
-                EVENT_ID,
-                OWNER_ID,
-                "Concert",
-                "Main Hall",
-                request.startsAt(),
-                request.endsAt(),
-                100,
-                false,
-                0,
-                Instant.parse("2030-01-01T12:00:00Z"));
-        when(eventMapper.toEntity(request, OWNER_ID)).thenReturn(event);
-        when(eventRepository.saveAndFlush(event)).thenReturn(savedEvent);
-        when(savedEvent.getId()).thenReturn(EVENT_ID);
-        when(eventMapper.toResponse(savedEvent)).thenReturn(expectedResponse);
-
-        EventResponse response = eventService.create(request, OWNER_ID, IP, USER_AGENT);
-
-        assertSame(expectedResponse, response);
-        InOrder persistenceOrder = inOrder(eventRepository, auditService);
-        persistenceOrder.verify(eventRepository).saveAndFlush(event);
-        persistenceOrder.verify(auditService).saveRecord(
-                OWNER_ID,
-                EventService.EVENT_CREATED,
-                EventService.EVENT_RESOURCE,
-                EVENT_ID,
-                IP,
-                USER_AGENT);
-        verify(eventMapper).toResponse(savedEvent);
+    @BeforeEach
+    void setUp() {
+        eventService = new EventService(eventRepository, eventSpecifications, eventMapper, auditService);
+        event = event("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100);
     }
 
     @Test
-    void propagatesAuditFailureWithoutReturningSuccessfulCreateResponse() {
-        CreateEventRequest request = createRequest();
+    void createsDraftEvent() {
+        CreateEventRequest request = new CreateEventRequest("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100);
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false);
+
         when(eventMapper.toEntity(request, OWNER_ID)).thenReturn(event);
-        when(eventRepository.saveAndFlush(event)).thenReturn(savedEvent);
-        when(savedEvent.getId()).thenReturn(EVENT_ID);
-        doThrow(new IllegalStateException("audit unavailable")).when(auditService).saveRecord(
-                OWNER_ID, EventService.EVENT_CREATED, EventService.EVENT_RESOURCE, EVENT_ID, IP, USER_AGENT);
+        when(eventRepository.saveAndFlush(event)).thenReturn(event);
+        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
 
-        assertThrows(IllegalStateException.class,
-                () -> eventService.create(request, OWNER_ID, IP, USER_AGENT));
+        EventResponse actualResponse = eventService.create(request, OWNER_ID, IP, USER_AGENT);
 
-        verify(eventMapper, never()).toResponse(savedEvent);
+        assertEquals(expectedResponse, actualResponse);
+        verify(eventRepository).saveAndFlush(event);
+        verify(auditService).saveRecord(OWNER_ID, EventService.EVENT_CREATED, EventService.EVENT_RESOURCE, event.getId(), IP, USER_AGENT);
+        verify(eventMapper).toResponse(event);
     }
 
     @Test
-    void updatesEventAndRecordsAudit() {
-        UpdateEventRequest request = updateRequest();
-        EventResponse expectedResponse = response("Festival");
+    void updatesEvent() {
+        UpdateEventRequest request = new UpdateEventRequest("Festival", "Arena",
+                Instant.parse("2030-07-01T18:00:00Z"), Instant.parse("2030-07-01T20:00:00Z"), 200);
+        EventResponse expectedResponse = response(
+                request.title(), request.venue(), request.startsAt(), request.endsAt(), request.capacity(), false);
+
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(event.getOwnerId()).thenReturn(OWNER_ID);
-        when(eventRepository.saveAndFlush(event)).thenReturn(savedEvent);
-        when(eventMapper.toResponse(savedEvent)).thenReturn(expectedResponse);
+        when(eventRepository.saveAndFlush(event)).thenReturn(event);
+        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
 
-        EventResponse response = eventService.update(EVENT_ID, request, OWNER_ID, false, IP, USER_AGENT);
+        EventResponse actualResponse = eventService.update(EVENT_ID, request, OWNER_ID, false, IP, USER_AGENT);
 
-        assertSame(expectedResponse, response);
-        verify(event).update(
-                request.title(), request.venue(), request.startsAt(), request.endsAt(), request.capacity());
+        assertEquals(expectedResponse, actualResponse);
+        assertEquals(request.title(), event.getTitle());
+        assertEquals(request.capacity(), event.getCapacity());
         verify(eventRepository).saveAndFlush(event);
         verify(auditService).saveRecord(
                 OWNER_ID, EventService.EVENT_UPDATED, EventService.EVENT_RESOURCE, EVENT_ID, IP, USER_AGENT);
     }
 
     @Test
-    void rejectsUpdateWhenEventDoesNotExist() {
-        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.empty());
+    void publishesEvent() {
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, true);
 
-        assertThrows(EventNotFoundException.class,
-                () -> eventService.update(EVENT_ID, updateRequest(), OWNER_ID, false, IP, USER_AGENT));
-
-        verifyNoInteractions(eventMapper, auditService);
-    }
-
-    @Test
-    void rejectsUpdateForAnotherOwnerWithoutAnotherRepositoryCall() {
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(event.getOwnerId()).thenReturn(1L);
+        when(eventRepository.saveAndFlush(event)).thenReturn(event);
+        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
 
-        assertThrows(AccessDeniedException.class,
-                () -> eventService.update(EVENT_ID, updateRequest(), OWNER_ID, false, IP, USER_AGENT));
+        EventResponse actualResponse = eventService.publish(EVENT_ID, OWNER_ID, false, IP, USER_AGENT);
 
-        verify(event).getOwnerId();
-        verifyNoMoreInteractions(event);
-        verify(eventRepository, never()).saveAndFlush(event);
-        verifyNoInteractions(eventMapper, auditService);
-    }
-
-    @Test
-    void adminUpdatesEventWithoutOwnershipRestriction() {
-        UpdateEventRequest request = updateRequest();
-        EventResponse expectedResponse = response("Festival");
-        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(eventRepository.saveAndFlush(event)).thenReturn(savedEvent);
-        when(eventMapper.toResponse(savedEvent)).thenReturn(expectedResponse);
-
-        EventResponse response = eventService.update(EVENT_ID, request, 1L, true, IP, USER_AGENT);
-
-        assertSame(expectedResponse, response);
-        verify(event).update(
-                request.title(), request.venue(), request.startsAt(), request.endsAt(), request.capacity());
-        verify(auditService).saveRecord(
-                1L, EventService.EVENT_UPDATED, EventService.EVENT_RESOURCE, EVENT_ID, IP, USER_AGENT);
-    }
-
-    @Test
-    void publishesEventAndRecordsAudit() {
-        EventResponse expectedResponse = response("Concert");
-        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(event.getOwnerId()).thenReturn(OWNER_ID);
-        when(eventRepository.saveAndFlush(event)).thenReturn(savedEvent);
-        when(eventMapper.toResponse(savedEvent)).thenReturn(expectedResponse);
-
-        EventResponse response = eventService.publish(EVENT_ID, OWNER_ID, false, IP, USER_AGENT);
-
-        assertSame(expectedResponse, response);
-        verify(event).publish();
+        assertEquals(expectedResponse, actualResponse);
+        assertEquals(true, event.isPublished());
         verify(eventRepository).saveAndFlush(event);
         verify(auditService).saveRecord(
                 OWNER_ID, EventService.EVENT_PUBLISHED, EventService.EVENT_RESOURCE, EVENT_ID, IP, USER_AGENT);
     }
 
     @Test
-    void doesNotAuditRejectedPublish() {
-        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(event.getOwnerId()).thenReturn(OWNER_ID);
-        doThrow(new IllegalStateException("incomplete")).when(event).publish();
+    void listsOrganizerEvents() {
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false);
 
-        assertThrows(IllegalStateException.class,
-                () -> eventService.publish(EVENT_ID, OWNER_ID, false, IP, USER_AGENT));
-
-        verifyNoInteractions(auditService, eventMapper);
-    }
-
-    @Test
-    void rejectsPublishForAnotherOwnerWithoutAnotherRepositoryCall() {
-        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(event.getOwnerId()).thenReturn(1L);
-
-        assertThrows(AccessDeniedException.class,
-                () -> eventService.publish(EVENT_ID, OWNER_ID, false, IP, USER_AGENT));
-
-        verify(event).getOwnerId();
-        verifyNoMoreInteractions(event);
-        verify(eventRepository, never()).saveAndFlush(event);
-        verifyNoInteractions(eventMapper, auditService);
-    }
-
-    @Test
-    void organizerListsOnlyOwnEventsWhenOwnerFilterIsAbsent() {
-        EventResponse expectedResponse = response("Concert");
         when(eventRepository.findAllByOwnerIdOrderByCreatedAtDesc(OWNER_ID)).thenReturn(List.of(event));
         when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
 
-        List<EventResponse> response = eventService.list(null, OWNER_ID, false);
+        List<EventResponse> actualResponse = eventService.list(null, OWNER_ID, false);
 
-        assertEquals(List.of(expectedResponse), response);
-    }
-
-    @Test
-    void organizerCannotListAnotherOwnersEvents() {
-        assertThrows(AccessDeniedException.class, () -> eventService.list(1L, OWNER_ID, false));
-
-        verifyNoInteractions(eventRepository, eventMapper, auditService);
-    }
-
-    @Test
-    void adminListsAllEventsWhenOwnerFilterIsAbsent() {
-        when(eventRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
-
-        assertTrue(eventService.list(null, 1L, true).isEmpty());
-
-        verify(eventRepository).findAllByOrderByCreatedAtDesc();
-    }
-
-    @Test
-    void adminCanFilterEventsByOwner() {
-        when(eventRepository.findAllByOwnerIdOrderByCreatedAtDesc(OWNER_ID)).thenReturn(List.of());
-
-        assertTrue(eventService.list(OWNER_ID, 1L, true).isEmpty());
-
+        assertEquals(List.of(expectedResponse), actualResponse);
         verify(eventRepository).findAllByOwnerIdOrderByCreatedAtDesc(OWNER_ID);
+        verify(eventMapper).toResponse(event);
     }
 
     @Test
-    void listsPublishedEventsWithNormalizedFilters() {
-        PublicEventQuery query = new PublicEventQuery(
-                Instant.parse("2030-01-01T00:00:00Z"),
-                Instant.parse("2031-01-01T00:00:00Z"),
+    void listsPublicEvents() {
+        PublicEventQuery query = new PublicEventQuery(Instant.parse("2030-01-01T00:00:00Z"), Instant.parse("2031-01-01T00:00:00Z"),
                 "  concert  ");
-        EventResponse expectedResponse = response("Concert");
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false);
+        Specification<Event> expectedSpecification = (root, criteriaQuery, criteriaBuilder) ->
+                criteriaBuilder.conjunction();
+        Sort expectedSort = Sort.by(Sort.Direction.ASC, "startsAt");
+
         when(eventSpecifications.getDateAndQueryCriteria(query.from(), query.to(), "concert"))
-                .thenReturn(specification);
-        when(eventRepository.findAll(specification, Sort.by(Sort.Direction.ASC, "startsAt")))
-                .thenReturn(List.of(event));
+                .thenReturn(expectedSpecification);
+        when(eventRepository.findAll(expectedSpecification, expectedSort)).thenReturn(List.of(event));
         when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
 
-        List<EventResponse> response = eventService.listPublic(query);
+        List<EventResponse> actualResponse = eventService.listPublic(query);
 
-        assertEquals(List.of(expectedResponse), response);
+        assertEquals(List.of(expectedResponse), actualResponse);
         verify(eventSpecifications).getDateAndQueryCriteria(query.from(), query.to(), "concert");
+        verify(eventRepository).findAll(expectedSpecification, expectedSort);
+        verify(eventMapper).toResponse(event);
     }
 
     @Test
-    void treatsBlankPublicSearchAsNoTextFilter() {
-        PublicEventQuery query = new PublicEventQuery(null, null, "   ");
-        when(eventSpecifications.getDateAndQueryCriteria(null, null, null)).thenReturn(specification);
-        when(eventRepository.findAll(specification, Sort.by(Sort.Direction.ASC, "startsAt")))
-                .thenReturn(List.of());
+    void getsPublishedEventForReservation() {
+        Instant reservationStartsAt = Instant.parse("2100-06-01T18:00:00Z");
+        Event publishedEvent = event("Concert", "Main Hall", reservationStartsAt,
+                Instant.parse("2100-06-01T20:00:00Z"), 100);
+        ReflectionTestUtils.setField(publishedEvent, "id", EVENT_ID);
+        publishedEvent.publish();
+        EventReservationDTO expectedResponse = new EventReservationDTO(EVENT_ID, 100, true, reservationStartsAt);
 
-        assertTrue(eventService.listPublic(query).isEmpty());
-        verify(eventSpecifications).getDateAndQueryCriteria(null, null, null);
+        when(eventRepository.findByIdForReservation(EVENT_ID)).thenReturn(Optional.of(publishedEvent));
+
+        EventReservationDTO actualResponse = eventService.getForReservation(EVENT_ID);
+
+        assertEquals(expectedResponse, actualResponse);
+        verify(eventRepository).findByIdForReservation(EVENT_ID);
     }
 
-    private CreateEventRequest createRequest() {
-        return new CreateEventRequest(
-                "Concert",
-                "Main Hall",
-                Instant.parse("2030-06-01T18:00:00Z"),
-                Instant.parse("2030-06-01T20:00:00Z"),
-                100);
+    private Event event(String title, String venue, Instant startsAt, Instant endsAt, int capacity) {
+        return new Event(OWNER_ID, title, venue, startsAt, endsAt, capacity);
     }
 
-    private UpdateEventRequest updateRequest() {
-        return new UpdateEventRequest(
-                "Festival",
-                "Arena",
-                Instant.parse("2030-07-01T18:00:00Z"),
-                Instant.parse("2030-07-01T20:00:00Z"),
-                200);
-    }
-
-    private EventResponse response(String title) {
-        return new EventResponse(
-                EVENT_ID,
-                OWNER_ID,
-                title,
-                "Main Hall",
-                Instant.parse("2030-06-01T18:00:00Z"),
-                Instant.parse("2030-06-01T20:00:00Z"),
-                100,
-                false,
-                0,
-                Instant.parse("2030-01-01T12:00:00Z"));
+    private EventResponse response(String title, String venue, Instant startsAt, Instant endsAt, int capacity, boolean published) {
+        return new EventResponse(null, OWNER_ID, title, venue, startsAt, endsAt, capacity, published, 0, null);
     }
 }

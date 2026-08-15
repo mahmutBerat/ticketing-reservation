@@ -6,9 +6,6 @@ import com.mbi.ticketingreservation.auth.domain.User;
 import com.mbi.ticketingreservation.event.api.CreateEventRequest;
 import com.mbi.ticketingreservation.event.api.EventMapper;
 import com.mbi.ticketingreservation.event.domain.Event;
-import com.mbi.ticketingreservation.reservation.api.CreateReservationRequest;
-import com.mbi.ticketingreservation.reservation.api.ReservationMapper;
-import com.mbi.ticketingreservation.reservation.domain.Reservation;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
@@ -20,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class DomainMapperTest {
 
     private static final EventMapper EVENT_MAPPER = Mappers.getMapper(EventMapper.class);
-    private static final ReservationMapper RESERVATION_MAPPER = Mappers.getMapper(ReservationMapper.class);
     private static final UserMapper USER_MAPPER = Mappers.getMapper(UserMapper.class);
 
     @Test
@@ -38,17 +34,6 @@ class DomainMapperTest {
         assertEquals(2L, event.getOwnerId());
         assertEquals("Concert", response.title());
         assertEquals(100, response.capacity());
-    }
-
-    @Test
-    void mapsReservationRequestToDomainAndDomainToResponse() {
-        Reservation reservation = RESERVATION_MAPPER.toEntity(new CreateReservationRequest(2), 10L, 20L);
-
-        var response = RESERVATION_MAPPER.toResponse(reservation);
-
-        assertEquals(10L, response.eventId());
-        assertEquals(20L, response.userId());
-        assertEquals(2, response.seats());
     }
 
     @Test

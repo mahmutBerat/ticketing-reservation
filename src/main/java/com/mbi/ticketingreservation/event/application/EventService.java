@@ -3,6 +3,7 @@ package com.mbi.ticketingreservation.event.application;
 import com.mbi.ticketingreservation.audit.application.AuditService;
 import com.mbi.ticketingreservation.event.api.*;
 import com.mbi.ticketingreservation.event.domain.Event;
+import com.mbi.ticketingreservation.event.domain.InvalidEventStateException;
 import com.mbi.ticketingreservation.event.persistence.EventRepository;
 import com.mbi.ticketingreservation.event.persistence.EventSpecifications;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -36,14 +38,7 @@ public class EventService {
     }
 
     @Transactional
-    public EventResponse update(
-            Long eventId,
-            UpdateEventRequest request,
-            Long ownerId,
-            boolean admin,
-            String ip,
-            String userAgent
-    ) {
+    public EventResponse update(Long eventId, UpdateEventRequest request, Long ownerId, boolean admin, String ip, String userAgent) {
         Event event = getEventById(eventId);
         verifyCanModify(event, ownerId, admin);
         event.update(request.title(), request.venue(), request.startsAt(), request.endsAt(), request.capacity());
@@ -99,5 +94,17 @@ public class EventService {
         Event eventById = getEventById(id);
         verifyCanModify(eventById, ownerId, admin);
         return eventMapper.toResponse(eventById);
+    }
+
+    @Transactional
+    public EventReservationDTO getForReservation(Long eventId) {
+        Event event = eventRepository.findByIdForReservation(eventId).orElseThrow(EventNotFoundException::new);
+        if (event.isDraft()) {
+            throw new InvalidEventStateException("Reservations require a published event");
+        }
+        if (event.getStartsAt() == null || !event.getStartsAt().isAfter(Instant.now())) {
+            throw new InvalidEventStateException("Reservations close when the event starts");
+        }
+        return new EventReservationDTO(event.getId(), event.getCapacity(), event.isPublished(), event.getStartsAt());
     }
 }

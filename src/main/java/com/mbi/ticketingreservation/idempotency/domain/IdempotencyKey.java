@@ -10,21 +10,20 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.Instant;
 import java.util.Objects;
 
 @Entity
-@Table(
-        name = "idempotency_keys",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_idempotency_keys_scope",
-                columnNames = {"actor_id", "endpoint", "idempotency_key"})
-)
+@Table(name = "idempotency_keys")
+@SQLRestriction("deleted_at IS NULL")
+// TODO provide uniqueConstraints = @UniqueConstraint(
+//                name = "uk_idempotency_keys_scope",
+//                columnNames = {"actor_id", "endpoint", "idempotency_key"})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class IdempotencyKey extends BaseEntity {
@@ -49,18 +48,15 @@ public class IdempotencyKey extends BaseEntity {
     @Column(name = "request_hash", nullable = false, length = 64)
     private String requestHash;
 
-    @Column(name = "response_status")
-    private Integer responseStatus;
-
-    @Column(name = "response_body", columnDefinition = "TEXT")
-    private String responseBody;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private IdempotencyStatus status;
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
+
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
 
     public IdempotencyKey(Long actorId, String endpoint, String key, String requestHash, Instant expiresAt) {
         this.actorId = Objects.requireNonNull(actorId, "actorId must not be null");
@@ -71,16 +67,18 @@ public class IdempotencyKey extends BaseEntity {
         this.status = IdempotencyStatus.PROCESSING;
     }
 
-    public void complete(int responseStatus, String responseBody) {
+    public void complete() {
         if (status == IdempotencyStatus.COMPLETED) {
             throw new IllegalStateException("Idempotency record is already completed");
         }
-        if (responseStatus < 100 || responseStatus > 599) {
-            throw new IllegalArgumentException("responseStatus must be a valid HTTP status");
-        }
-        this.responseStatus = responseStatus;
-        this.responseBody = Objects.requireNonNull(responseBody, "responseBody must not be null");
         this.status = IdempotencyStatus.COMPLETED;
+    }
+
+    public void softDelete(Instant instant) {
+        if (deletedAt != null) {
+            throw new IllegalStateException("Idempotency record is already deleted");
+        }
+        deletedAt = Objects.requireNonNull(instant, "instant must not be null");
     }
 
     private static String requireText(String value, String fieldName) {

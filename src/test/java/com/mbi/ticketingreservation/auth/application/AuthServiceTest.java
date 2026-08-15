@@ -1,18 +1,13 @@
 package com.mbi.ticketingreservation.auth.application;
 
-import com.mbi.ticketingreservation.auth.api.AccessTokenResponse;
-import com.mbi.ticketingreservation.auth.api.LoginRequest;
-import com.mbi.ticketingreservation.auth.api.RefreshTokenRequest;
-import com.mbi.ticketingreservation.auth.api.RegisterRequest;
-import com.mbi.ticketingreservation.auth.api.TokenPairResponse;
-import com.mbi.ticketingreservation.auth.api.UserMapper;
-import com.mbi.ticketingreservation.auth.api.UserResponse;
+import com.mbi.ticketingreservation.auth.api.*;
 import com.mbi.ticketingreservation.auth.domain.Role;
 import com.mbi.ticketingreservation.auth.domain.User;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,22 +19,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
     private static final Instant NOW = Instant.parse("2030-01-01T12:00:00Z");
-    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     private static final String ORGANIZER_EMAIL = "organizerUser@example.com";
     private static final String NORMALIZED_ORGANIZER_EMAIL = "organizeruser@example.com";
+
+    @Spy
+    private final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     @Mock
     private UserService userService;
@@ -53,12 +44,8 @@ class AuthServiceTest {
     @Mock
     private TokenService tokenService;
 
+    @InjectMocks
     private AuthService authService;
-
-    @BeforeEach
-    void setUp() {
-        authService = new AuthService(userService, userMapper, passwordEncoder, tokenService, CLOCK);
-    }
 
     @Test
     void registersCustomerWithEncodedPassword() {
