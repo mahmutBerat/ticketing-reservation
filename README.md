@@ -186,18 +186,7 @@ The GitHub Actions CI workflow runs for:
 - pull requests targeting `main`;
 - manual workflow dispatches.
 
-CI installs Java 25, restores the Gradle cache, and runs `./gradlew clean build`. Test and JaCoCo reports are uploaded
-as the `verification-reports` artifact, while the static analysis report is available separately as
-`spotbugs-html-report`. Reports are retained for 14 days and are uploaded even when a test fails, when report files are
-available.
-
-Each same-repository pull request receives one automatically updated comment containing the test result, overall JaCoCo
-line, branch, and method coverage, and the number of high-confidence SpotBugs findings. The same content is shown in the
-workflow run summary. GitHub does not grant write access to `pull_request` workflows from forks, so forked pull requests
-still run CI but do not receive the comment.
-
-The repository currently provides continuous integration only. Deployment automation can be added after selecting a
-target platform and artifact registry.
+CI installs Java 25, restores the Gradle cache, and runs `./gradlew clean build`.
 
 ## Configuration
 
