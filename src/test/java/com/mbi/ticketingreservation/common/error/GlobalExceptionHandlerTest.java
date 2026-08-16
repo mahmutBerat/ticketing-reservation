@@ -131,6 +131,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void mapsReservationLockTimeoutToConflict() {
+        ResponseEntity<ApiError> response = exceptionHandler.handleReservationLockConflict();
+
+        assertError(response, HttpStatus.CONFLICT, ApiError.RESERVATION_CONFLICT,
+                "The event is busy with another reservation; retry the request");
+    }
+
+    @Test
     void mapsUnknownEndpointToNotFound() {
         ResponseEntity<ApiError> response = exceptionHandler.handleEndpointNotFound();
 

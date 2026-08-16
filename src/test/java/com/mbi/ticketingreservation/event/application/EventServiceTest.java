@@ -88,7 +88,7 @@ class EventServiceTest {
         EventResponse expectedResponse = response(
                 request.title(), request.venue(), request.startsAt(), request.endsAt(), request.capacity(), false);
 
-        when(eventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventRepository.saveAndFlush(event)).thenReturn(event);
         when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
 
@@ -107,7 +107,7 @@ class EventServiceTest {
         UpdateEventRequest request = new UpdateEventRequest(
                 "Concert", "Main Hall", STARTS_AT, ENDS_AT, 5);
 
-        when(eventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(reservationReadService.getActiveSeatsForEvent(EVENT_ID)).thenReturn(5L);
         when(eventRepository.saveAndFlush(event)).thenReturn(event);
         when(eventMapper.toResponse(event)).thenReturn(
@@ -123,7 +123,7 @@ class EventServiceTest {
         UpdateEventRequest request = new UpdateEventRequest(
                 "Concert", "Main Hall", STARTS_AT, ENDS_AT, 4);
 
-        when(eventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(reservationReadService.getActiveSeatsForEvent(EVENT_ID)).thenReturn(5L);
 
         assertThrows(
@@ -219,17 +219,17 @@ class EventServiceTest {
         publishedEvent.publish();
         EventReservationDTO expectedResponse = new EventReservationDTO(EVENT_ID, 100, true, reservationStartsAt);
 
-        when(eventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(publishedEvent));
+        when(eventRepository.findByIdForReservation(EVENT_ID)).thenReturn(Optional.of(publishedEvent));
 
         EventReservationDTO actualResponse = eventService.getForReservation(EVENT_ID);
 
         assertEquals(expectedResponse, actualResponse);
-        verify(eventRepository).findByIdForUpdate(EVENT_ID);
+        verify(eventRepository).findByIdForReservation(EVENT_ID);
     }
 
     @Test
     void rejectsDraftEventForReservation() {
-        when(eventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventRepository.findByIdForReservation(EVENT_ID)).thenReturn(Optional.of(event));
 
         assertThrows(
                 InvalidEventStateException.class,

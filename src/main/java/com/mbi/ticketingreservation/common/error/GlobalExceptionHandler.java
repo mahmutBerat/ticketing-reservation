@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
@@ -165,6 +166,15 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT,
                 ApiError.RESERVATION_CONFLICT,
                 "The reservation or event changed concurrently; retry the request",
+                List.of());
+    }
+
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    ResponseEntity<ApiError> handleReservationLockConflict() {
+        return errorResponse(
+                HttpStatus.CONFLICT,
+                ApiError.RESERVATION_CONFLICT,
+                "The event is busy with another reservation; retry the request",
                 List.of());
     }
 

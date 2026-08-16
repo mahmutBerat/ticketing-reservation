@@ -16,7 +16,8 @@ prevention in a compact modular application.
 - Reservation creation, confirmation, and cancellation
 - UUIDv4 idempotency keys for reservation creation
 - Capacity enforcement using active `PENDING` and `CONFIRMED` reservations
-- Optimistic force-increment locking around capacity-sensitive event operations
+- Pessimistic event-row locking during reservation capacity checks without updating the event
+- Optimistic version locking for actual event updates
 - Transactional audit records for state-changing operations
 - Health checks, correlation IDs, metrics, and optional OTLP export
 - Liquibase-managed schema and development seed data

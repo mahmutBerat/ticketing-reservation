@@ -41,7 +41,7 @@ public class EventService {
 
     @Transactional
     public EventResponse update(Long eventId, UpdateEventRequest request, Long ownerId, boolean admin, String ip, String userAgent) {
-        Event event = getEventByIdForUpdate(eventId);
+        Event event = getEventById(eventId);
         verifyCanModify(event, ownerId, admin);
         long activeSeats = reservationReadService.getActiveSeatsForEvent(eventId);
         if (request.capacity() < activeSeats) {
@@ -90,10 +90,6 @@ public class EventService {
         return eventRepository.findById(eventId).orElseThrow(EventNotFoundException::new);
     }
 
-    private Event getEventByIdForUpdate(Long eventId) {
-        return eventRepository.findByIdForUpdate(eventId).orElseThrow(EventNotFoundException::new);
-    }
-
     private void verifyCanModify(Event event, Long ownerId, boolean admin) {
         if (!admin && !event.getOwnerId().equals(ownerId)) {
             throw new AccessDeniedException("Organizer cannot modify another owner's event");
@@ -108,7 +104,7 @@ public class EventService {
 
     @Transactional
     public EventReservationDTO getForReservation(Long eventId) {
-        Event event = getEventByIdForUpdate(eventId);
+        Event event = eventRepository.findByIdForReservation(eventId).orElseThrow(EventNotFoundException::new);
         if (event.isDraft()) {
             throw new InvalidEventStateException("Reservations require a published event");
         }
