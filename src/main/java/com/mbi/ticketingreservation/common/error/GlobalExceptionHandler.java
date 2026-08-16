@@ -6,6 +6,7 @@ import com.mbi.ticketingreservation.auth.application.InvalidRefreshTokenExceptio
 import com.mbi.ticketingreservation.auth.application.UserNotFoundException;
 import com.mbi.ticketingreservation.auth.domain.AdminRolesImmutableException;
 import com.mbi.ticketingreservation.common.error.ApiError.FieldValidationError;
+import com.mbi.ticketingreservation.event.application.EventCapacityBelowActiveReservationsException;
 import com.mbi.ticketingreservation.event.application.EventNotFoundException;
 import com.mbi.ticketingreservation.event.domain.InvalidEventStateException;
 import com.mbi.ticketingreservation.reservation.application.*;
@@ -121,6 +122,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EventCapacityExceededException.class)
     ResponseEntity<ApiError> handleEventCapacityExceeded(EventCapacityExceededException exception) {
         return errorResponse(HttpStatus.CONFLICT, ApiError.EVENT_CAPACITY_EXCEEDED, exception.getMessage(), List.of());
+    }
+
+    @ExceptionHandler(EventCapacityBelowActiveReservationsException.class)
+    ResponseEntity<ApiError> handleEventCapacityBelowActiveReservations(
+            EventCapacityBelowActiveReservationsException exception) {
+        return errorResponse(HttpStatus.CONFLICT, ApiError.EVENT_CAPACITY_BELOW_ACTIVE_RESERVATIONS, exception.getMessage(), List.of());
     }
 
     @ExceptionHandler(ActiveReservationExistsException.class)

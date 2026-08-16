@@ -45,28 +45,17 @@ public class Event extends BaseEntity {
     @Column(name = "version", nullable = false)
     private long version;
 
-    public Event(
-            Long ownerId,
-            String title,
-            String venue,
-            Instant startsAt,
-            Instant endsAt,
-            int capacity
-    ) {
+    public Event(Long ownerId, String title, String venue, Instant startsAt, Instant endsAt, int capacity) {
         this.ownerId = Objects.requireNonNull(ownerId, "ownerId must not be null");
         update(title, venue, startsAt, endsAt, capacity);
     }
 
     public void update(String title, String venue, Instant startsAt, Instant endsAt, int capacity) {
-        validateCapacity(capacity);
-        validateDateRange(startsAt, endsAt);
-        String normalizedTitle = normalize(title);
-        String normalizedVenue = normalize(venue);
-        if (!isDraft() && !isComplete(normalizedTitle, normalizedVenue, startsAt, endsAt)) {
+        if (!isDraft() && !isComplete(title, venue, startsAt, endsAt)) {
             throw new InvalidEventStateException("Published event must remain complete");
         }
-        this.title = normalizedTitle;
-        this.venue = normalizedVenue;
+        this.title = title;
+        this.venue = venue;
         this.startsAt = startsAt;
         this.endsAt = endsAt;
         this.capacity = capacity;
@@ -85,21 +74,5 @@ public class Event extends BaseEntity {
 
     private static boolean isComplete(String title, String venue, Instant startsAt, Instant endsAt) {
         return title != null && venue != null && startsAt != null && endsAt != null;
-    }
-
-    private static void validateCapacity(int capacity) {
-        if (capacity <= 0) {
-            throw new IllegalArgumentException("capacity must be greater than zero");
-        }
-    }
-
-    private static void validateDateRange(Instant startsAt, Instant endsAt) {
-        if (startsAt != null && endsAt != null && !startsAt.isBefore(endsAt)) {
-            throw new IllegalArgumentException("startsAt must be before endsAt");
-        }
-    }
-
-    private static String normalize(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 }

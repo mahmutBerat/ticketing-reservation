@@ -6,6 +6,7 @@ import com.mbi.ticketingreservation.event.domain.Event;
 import com.mbi.ticketingreservation.event.domain.InvalidEventStateException;
 import com.mbi.ticketingreservation.event.persistence.EventRepository;
 import com.mbi.ticketingreservation.event.persistence.EventSpecifications;
+import com.mbi.ticketingreservation.reservation.application.ReservationReadService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +29,7 @@ public class EventService {
     private final EventSpecifications eventSpecifications;
     private final EventMapper eventMapper;
     private final AuditService auditService;
+    private final ReservationReadService reservationReadService;
 
     @Transactional
     public EventResponse create(CreateEventRequest request, Long ownerId, String ip, String userAgent) {
@@ -41,6 +43,10 @@ public class EventService {
     public EventResponse update(Long eventId, UpdateEventRequest request, Long ownerId, boolean admin, String ip, String userAgent) {
         Event event = getEventById(eventId);
         verifyCanModify(event, ownerId, admin);
+        long activeSeats = reservationReadService.getActiveSeatsForEvent(eventId);
+        if (request.capacity() < activeSeats) {
+            throw new EventCapacityBelowActiveReservationsException();
+        }
         event.update(request.title(), request.venue(), request.startsAt(), request.endsAt(), request.capacity());
         Event savedEvent = eventRepository.saveAndFlush(event);
         auditService.saveRecord(ownerId, EVENT_UPDATED, EVENT_RESOURCE, eventId, ip, userAgent);
@@ -98,7 +104,7 @@ public class EventService {
 
     @Transactional
     public EventReservationDTO getForReservation(Long eventId) {
-        Event event = eventRepository.findByIdForReservation(eventId).orElseThrow(EventNotFoundException::new);
+        Event event = getEventById(eventId);
         if (event.isDraft()) {
             throw new InvalidEventStateException("Reservations require a published event");
         }

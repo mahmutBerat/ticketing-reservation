@@ -3,8 +3,10 @@ package com.mbi.ticketingreservation.event.application;
 import com.mbi.ticketingreservation.audit.application.AuditService;
 import com.mbi.ticketingreservation.event.api.*;
 import com.mbi.ticketingreservation.event.domain.Event;
+import com.mbi.ticketingreservation.event.domain.InvalidEventStateException;
 import com.mbi.ticketingreservation.event.persistence.EventRepository;
 import com.mbi.ticketingreservation.event.persistence.EventSpecifications;
+import com.mbi.ticketingreservation.reservation.application.ReservationReadService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -19,8 +22,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class EventServiceTest {
@@ -45,11 +48,19 @@ class EventServiceTest {
     @Mock
     private EventSpecifications eventSpecifications;
 
+    @Mock
+    private ReservationReadService reservationReadService;
+
     private EventService eventService;
 
     @BeforeEach
     void setUp() {
-        eventService = new EventService(eventRepository, eventSpecifications, eventMapper, auditService);
+        eventService = new EventService(
+                eventRepository,
+                eventSpecifications,
+                eventMapper,
+                auditService,
+                reservationReadService);
         event = event("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100);
     }
 
@@ -89,6 +100,38 @@ class EventServiceTest {
         verify(eventRepository).saveAndFlush(event);
         verify(auditService).saveRecord(
                 OWNER_ID, EventService.EVENT_UPDATED, EventService.EVENT_RESOURCE, EVENT_ID, IP, USER_AGENT);
+    }
+
+    @Test
+    void allowsCapacityEqualToActiveReservedSeats() {
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Concert", "Main Hall", STARTS_AT, ENDS_AT, 5);
+
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(reservationReadService.getActiveSeatsForEvent(EVENT_ID)).thenReturn(5L);
+        when(eventRepository.saveAndFlush(event)).thenReturn(event);
+        when(eventMapper.toResponse(event)).thenReturn(
+                response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 5, false));
+
+        eventService.update(EVENT_ID, request, OWNER_ID, false, IP, USER_AGENT);
+
+        assertEquals(5, event.getCapacity());
+    }
+
+    @Test
+    void rejectsCapacityBelowActiveReservedSeats() {
+        UpdateEventRequest request = new UpdateEventRequest(
+                "Concert", "Main Hall", STARTS_AT, ENDS_AT, 4);
+
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(reservationReadService.getActiveSeatsForEvent(EVENT_ID)).thenReturn(5L);
+
+        assertThrows(
+                EventCapacityBelowActiveReservationsException.class,
+                () -> eventService.update(EVENT_ID, request, OWNER_ID, false, IP, USER_AGENT));
+
+        assertEquals(100, event.getCapacity());
+        verify(eventRepository, never()).saveAndFlush(event);
     }
 
     @Test
@@ -145,6 +188,29 @@ class EventServiceTest {
     }
 
     @Test
+    void getsEventByIdForOwner() {
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false);
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
+
+        EventResponse actualResponse = eventService.getById(EVENT_ID, OWNER_ID, false);
+
+        assertEquals(expectedResponse, actualResponse);
+        verify(eventMapper).toResponse(event);
+    }
+
+    @Test
+    void rejectsGetByIdForAnotherOwner() {
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> eventService.getById(EVENT_ID, 3L, false));
+
+        verifyNoInteractions(eventMapper);
+    }
+
+    @Test
     void getsPublishedEventForReservation() {
         Instant reservationStartsAt = Instant.parse("2100-06-01T18:00:00Z");
         Event publishedEvent = event("Concert", "Main Hall", reservationStartsAt,
@@ -153,12 +219,21 @@ class EventServiceTest {
         publishedEvent.publish();
         EventReservationDTO expectedResponse = new EventReservationDTO(EVENT_ID, 100, true, reservationStartsAt);
 
-        when(eventRepository.findByIdForReservation(EVENT_ID)).thenReturn(Optional.of(publishedEvent));
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(publishedEvent));
 
         EventReservationDTO actualResponse = eventService.getForReservation(EVENT_ID);
 
         assertEquals(expectedResponse, actualResponse);
-        verify(eventRepository).findByIdForReservation(EVENT_ID);
+        verify(eventRepository).findById(EVENT_ID);
+    }
+
+    @Test
+    void rejectsDraftEventForReservation() {
+        when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
+
+        assertThrows(
+                InvalidEventStateException.class,
+                () -> eventService.getForReservation(EVENT_ID));
     }
 
     private Event event(String title, String venue, Instant startsAt, Instant endsAt, int capacity) {

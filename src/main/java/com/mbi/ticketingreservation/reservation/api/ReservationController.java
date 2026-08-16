@@ -23,7 +23,7 @@ public class ReservationController {
     private final SessionUserProvider sessionUserProvider;
 
     @PostMapping("/events/{eventId}/reservations")
-    @PreAuthorize("hasRole('CUSTOMER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
     public ResponseEntity<ReservationResponse> create(
             @PathVariable Long eventId,
             @Valid @RequestBody CreateReservationRequest request,

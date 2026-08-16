@@ -24,6 +24,8 @@ public record ApiError(
     public static final String EVENT_NOT_FOUND = "EVENT_NOT_FOUND";
     public static final String INVALID_EVENT_STATE = "INVALID_EVENT_STATE";
     public static final String EVENT_CAPACITY_EXCEEDED = "EVENT_CAPACITY_EXCEEDED";
+    public static final String EVENT_CAPACITY_BELOW_ACTIVE_RESERVATIONS =
+            "EVENT_CAPACITY_BELOW_ACTIVE_RESERVATIONS";
     public static final String ACTIVE_RESERVATION_EXISTS = "ACTIVE_RESERVATION_EXISTS";
     public static final String IDEMPOTENCY_KEY_REUSED = "IDEMPOTENCY_KEY_REUSED";
     public static final String INVALID_IDEMPOTENCY_KEY = "INVALID_IDEMPOTENCY_KEY";
