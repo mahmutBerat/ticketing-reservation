@@ -16,8 +16,7 @@ prevention in a compact modular application.
 - Reservation creation, confirmation, and cancellation
 - UUIDv4 idempotency keys for reservation creation
 - Capacity enforcement using active `PENDING` and `CONFIRMED` reservations
-- Pessimistic locking around capacity-sensitive event operations
-- Optimistic versioning for concurrent entity updates
+- Optimistic force-increment locking around capacity-sensitive event operations
 - Transactional audit records for state-changing operations
 - Health checks, correlation IDs, metrics, and optional OTLP export
 - Liquibase-managed schema and development seed data
@@ -46,8 +45,9 @@ Within a feature:
 | `domain`      | Entities, state transitions, and domain rules          |
 | `persistence` | Spring Data repositories and query specifications      |
 
-Capacity-sensitive reservation flows lock the event row before calculating active seats. Event capacity cannot be
-reduced below the number of seats held by active reservations.
+Capacity-sensitive reservation flows force an event version increment before calculating active seats. Concurrent
+version conflicts roll the losing transaction back. Event capacity cannot be reduced below the number of seats held by
+active reservations.
 
 ## Technology Stack
 
@@ -85,6 +85,9 @@ reduced below the number of seats held by active reservations.
 | `POST`  | `/api/reservations/{reservationId}/cancel`  | Owner customer, Admin  |
 
 Reservation creation requires an `Idempotency-Key` header containing a valid UUIDv4.
+The first request claims the key in the same transaction as the reservation and audit record. Reusing a non-expired
+key returns `409 IDEMPOTENCY_KEY_REUSED`, including when the payload is identical. Expired records are physically
+replaced; response bodies are not stored or replayed.
 
 Interactive API documentation is available after startup:
 
@@ -197,6 +200,7 @@ CI installs Java 25, restores the Gradle cache, and runs `./gradlew clean build`
 | `DB_PASSWORD`                 | Empty                           | Database password                            |
 | `LIQUIBASE_CONTEXTS`          | `dev`                           | Active Liquibase contexts                    |
 | `JWT_SECRET`                  | Local development value         | HS256 signing secret; required in production |
+| `IDEMPOTENCY_TTL`             | `10m`                           | Reservation idempotency-key lifetime         |
 | `OTLP_TRACING_EXPORT_ENABLED` | `false`                         | Enable OTLP trace export                     |
 | `OTLP_METRICS_EXPORT_ENABLED` | `false`                         | Enable OTLP metrics export                   |
 

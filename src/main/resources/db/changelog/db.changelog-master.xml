@@ -7,6 +7,6 @@
 
     <include file="db/changelog/changes/001-create-schema.sql"/>
     <include file="db/changelog/changes/002-seed-development-users.sql"/>
-    <include file="db/changelog/changes/003-soft-delete-idempotency-keys.sql"/>
     <include file="db/changelog/changes/004-add-reservation-version.sql"/>
+    <include file="db/changelog/changes/005-simplify-idempotency-key-uniqueness.sql"/>
 </databaseChangeLog>

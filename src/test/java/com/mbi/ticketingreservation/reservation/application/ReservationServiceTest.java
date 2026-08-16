@@ -5,6 +5,7 @@ import com.mbi.ticketingreservation.event.application.EventReservationDTO;
 import com.mbi.ticketingreservation.event.application.EventService;
 import com.mbi.ticketingreservation.idempotency.application.IdempotencyService;
 import com.mbi.ticketingreservation.idempotency.domain.IdempotencyKey;
+import com.mbi.ticketingreservation.idempotency.domain.IdempotencyStatus;
 import com.mbi.ticketingreservation.reservation.api.CreateReservationRequest;
 import com.mbi.ticketingreservation.reservation.api.ReservationMapper;
 import com.mbi.ticketingreservation.reservation.api.ReservationResponse;
@@ -30,8 +31,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.mbi.ticketingreservation.reservation.application.ReservationService.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,9 +76,13 @@ class ReservationServiceTest {
         EventReservationDTO event = new EventReservationDTO(EVENT_ID, 10, true, NOW.plus(1, ChronoUnit.DAYS));
         Reservation savedReservation = new Reservation(EVENT_ID, CUSTOMER_ID, request.seats());
         ReservationResponse expectedResponse = new ReservationResponse(null, EVENT_ID, CUSTOMER_ID, ReservationStatus.PENDING, request.seats(), null);
+        IdempotencyKey claimedKey = idempotencyKey(request.seats(), NOW.plus(10, ChronoUnit.MINUTES));
 
         when(idempotencyService.findActive(CUSTOMER_ID, CREATE_ENDPOINT, IDEMPOTENCY_KEY))
                 .thenReturn(Optional.empty());
+        when(idempotencyService.create(
+                eq(CUSTOMER_ID), eq(CREATE_ENDPOINT), eq(IDEMPOTENCY_KEY), anyString(), eq(NOW)))
+                .thenReturn(claimedKey);
         when(eventService.getForReservation(EVENT_ID)).thenReturn(event);
         when(reservationRepository.existsByEventIdAndUserIdAndStatusIn(EVENT_ID, CUSTOMER_ID, ACTIVE_STATUSES))
                 .thenReturn(false);
@@ -92,28 +96,51 @@ class ReservationServiceTest {
         verify(reservationRepository).saveAndFlush(any(Reservation.class));
         verify(auditService).saveRecord(CUSTOMER_ID, ReservationService.RESERVATION_CREATED, RESERVATION_RESOURCE,
                 savedReservation.getId(), IP, USER_AGENT);
-        verify(idempotencyService).saveIdempotencyKey(eq(CUSTOMER_ID), eq(CREATE_ENDPOINT), eq(IDEMPOTENCY_KEY),
-                anyString(), eq(NOW));
+        assertEquals(IdempotencyStatus.COMPLETED, claimedKey.getStatus());
     }
 
     @Test
-    void rejectAlreadyIdempotentSavedAndExpiresAtNotPassed() {
+    void rejectsUnexpiredKeyWithSameRequest() {
         CreateReservationRequest request = new CreateReservationRequest(2);
         when(idempotencyService.findActive(CUSTOMER_ID, CREATE_ENDPOINT, IDEMPOTENCY_KEY))
-                .thenReturn(Optional.of(new IdempotencyKey(CUSTOMER_ID, CREATE_ENDPOINT, IDEMPOTENCY_KEY, createRequestHash(), Instant.now().plus(10, ChronoUnit.MINUTES))));
+                .thenReturn(Optional.of(idempotencyKey(request.seats(), NOW.plus(10, ChronoUnit.MINUTES))));
 
-        assertThrows(IdempotencyConflictException.class, () ->
+        IdempotencyConflictException exception = assertThrows(IdempotencyConflictException.class, () ->
                 reservationService.create(EVENT_ID, request, CUSTOMER_ID, IDEMPOTENCY_KEY, IP, USER_AGENT));
+
+        assertEquals("Request with this Idempotency-Key has already been processed", exception.getMessage());
     }
 
     @Test
-    void allowIdempotentKeySavedButExpiresAtPassed() {
+    void rejectsUnexpiredKeyWithDifferentRequest() {
         CreateReservationRequest request = new CreateReservationRequest(2);
         when(idempotencyService.findActive(CUSTOMER_ID, CREATE_ENDPOINT, IDEMPOTENCY_KEY))
-                .thenReturn(Optional.of(new IdempotencyKey(CUSTOMER_ID, CREATE_ENDPOINT, IDEMPOTENCY_KEY, createRequestHash(), Instant.now().minus(10, ChronoUnit.MINUTES))));
+                .thenReturn(Optional.of(idempotencyKey(3, NOW.plus(10, ChronoUnit.MINUTES))));
 
-        assertThrows(IdempotencyConflictException.class, () ->
+        IdempotencyConflictException exception = assertThrows(IdempotencyConflictException.class, () ->
                 reservationService.create(EVENT_ID, request, CUSTOMER_ID, IDEMPOTENCY_KEY, IP, USER_AGENT));
+
+        assertEquals("Idempotency-Key was already used with a different request", exception.getMessage());
+    }
+
+    @Test
+    void deletesExpiredKeyBeforeClaimingItAgain() {
+        CreateReservationRequest request = new CreateReservationRequest(2);
+        IdempotencyKey expiredKey = idempotencyKey(request.seats(), NOW);
+        RuntimeException stopAfterClaim = new RuntimeException("stop after create");
+        when(idempotencyService.findActive(CUSTOMER_ID, CREATE_ENDPOINT, IDEMPOTENCY_KEY))
+                .thenReturn(Optional.of(expiredKey), Optional.empty());
+        when(eventService.getForReservation(EVENT_ID)).thenReturn(
+                new EventReservationDTO(EVENT_ID, 10, true, NOW.plus(1, ChronoUnit.DAYS)));
+        when(idempotencyService.create(
+                eq(CUSTOMER_ID), eq(CREATE_ENDPOINT), eq(IDEMPOTENCY_KEY), anyString(), eq(NOW)))
+                .thenThrow(stopAfterClaim);
+
+        RuntimeException actual = assertThrows(RuntimeException.class, () ->
+                reservationService.create(EVENT_ID, request, CUSTOMER_ID, IDEMPOTENCY_KEY, IP, USER_AGENT));
+
+        assertSame(stopAfterClaim, actual);
+        verify(idempotencyService).deleteExpired(expiredKey);
     }
 
     @Test
@@ -194,13 +221,23 @@ class ReservationServiceTest {
     }
 
 
-    String createRequestHash() {
+    private IdempotencyKey idempotencyKey(int seats, Instant expiresAt) {
+        return new IdempotencyKey(
+                CUSTOMER_ID,
+                CREATE_ENDPOINT,
+                IDEMPOTENCY_KEY,
+                requestHash(seats),
+                expiresAt);
+    }
+
+    private String requestHash(int seats) {
         MessageDigest digest;
         try {
             digest = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        return HexFormat.of().formatHex(digest.digest("mockedRequestHash".getBytes(StandardCharsets.UTF_8)));
+        return HexFormat.of().formatHex(
+                digest.digest((EVENT_ID + ":" + seats).getBytes(StandardCharsets.UTF_8)));
     }
 }

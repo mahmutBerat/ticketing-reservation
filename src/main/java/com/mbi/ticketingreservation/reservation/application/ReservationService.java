@@ -26,9 +26,9 @@ import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ReservationService {
 
     public static final int MAX_SEATS_PER_REQUEST = 10;
@@ -55,26 +55,26 @@ public class ReservationService {
         String requestHash = getRequestHash(eventId, request.seats());
         Instant now = clock.instant();
 
-        IdempotencyKey existingKey = idempotencyService
-                .findActive(customerId, CREATE_ENDPOINT, idempotencyKey)
-                .orElse(null);
-        if (existingKey != null && !existingKey.getExpiresAt().isAfter(now)) {
-            throw new IdempotencyConflictException("Request with this Idempotency-Key has already completed");
-        } else {
-            // TODO delete existingKey and save the idempotency key with new tll
-            log.warn("continue delete existingKey and save the idempotency key with new tll");
-        }
+        handleExistingIdempotencyKey(customerId, idempotencyKey, requestHash, now);
 
-        verifyEventAcceptsReservationsForUser(eventId, customerId, request.seats());
+        EventReservationDTO event = eventService.getForReservation(eventId);
+        validateReservation(event, customerId, request.seats());
 
-        Reservation reservation = new Reservation(eventId, customerId, request.seats());
-        Reservation savedReservation = reservationRepository.saveAndFlush(reservation);
-        auditService.saveRecord(customerId, RESERVATION_CREATED, RESERVATION_RESOURCE, savedReservation.getId(), ip, userAgent);
+        IdempotencyKey savedKey = idempotencyService.create(customerId, CREATE_ENDPOINT, idempotencyKey, requestHash, now);
+
+        Reservation savedReservation = createReservation(eventId, request, customerId);
 
         ReservationResponse response = reservationMapper.toResponse(savedReservation);
-        idempotencyService.saveIdempotencyKey(customerId, CREATE_ENDPOINT, idempotencyKey, requestHash, now);
+
+        savedKey.complete();
+        auditService.saveRecord(customerId, RESERVATION_CREATED, RESERVATION_RESOURCE, savedReservation.getId(), ip, userAgent);
 
         return response;
+    }
+
+    private Reservation createReservation(Long eventId, CreateReservationRequest request, Long customerId) {
+        Reservation reservation = new Reservation(eventId, customerId, request.seats());
+        return reservationRepository.saveAndFlush(reservation);
     }
 
     @Transactional
@@ -107,9 +107,7 @@ public class ReservationService {
         }
     }
 
-    private void verifyEventAcceptsReservationsForUser(Long eventId, Long customerId, int seats) {
-        EventReservationDTO event = eventService.getForReservation(eventId);
-
+    private void validateReservation(EventReservationDTO event, Long customerId, int seats) {
         if (reservationRepository.existsByEventIdAndUserIdAndStatusIn(event.eventId(), customerId, EnumSet.of(ReservationStatus.PENDING, ReservationStatus.CONFIRMED))) {
             throw new ActiveReservationExistsException();
         }
@@ -118,6 +116,25 @@ public class ReservationService {
         if (seats > (event.capacity() - activeSeats)) {
             throw new EventCapacityExceededException();
         }
+    }
+
+    private void handleExistingIdempotencyKey(Long customerId, String idempotencyKey, String requestHash, Instant now) {
+        IdempotencyKey existingKey = idempotencyService
+                .findActive(customerId, CREATE_ENDPOINT, idempotencyKey)
+                .orElse(null);
+        if (existingKey == null) {
+            log.debug("No any existingKey found with {}. Continue to make reservation.", idempotencyKey);
+            return;
+        }
+        if (existingKey.isExpiredAt(now)) {
+            log.debug("ExistingKey expired {}. Deleting and continue to make reservation.", idempotencyKey);
+            idempotencyService.deleteExpired(existingKey);
+            return;
+        }
+        String message = requestHash.equals(existingKey.getRequestHash())
+                ? "Request with this Idempotency-Key has already been processed"
+                : "Idempotency-Key was already used with a different request";
+        throw new IdempotencyConflictException(message);
     }
 
     private void validateIdempotencyKey(String value) {
