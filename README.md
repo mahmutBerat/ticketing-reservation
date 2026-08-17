@@ -114,6 +114,12 @@ Interactive API documentation is available after startup:
 
 Use the access token returned by login with Swagger UI's **Authorize** button when calling protected endpoints.
 
+### Postman Collection
+
+Import [Ticketing&Reservation.postman_collection.json](Ticketing&Reservation.postman_collection.json) into Postman to
+exercise the complete API workflow. Run its folders in order: **Health**, **Authentication**, **Events**, and then
+**Reservations**. 
+
 ### Run locally
 
 ```bash
