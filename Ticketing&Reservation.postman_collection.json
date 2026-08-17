@@ -17,7 +17,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"email\": \"customer2@ticketing.local\",\n    \"password\": \"ChangeMe123!\"\n}",
+              "raw": "{\n    \"email\": \"customer3@ticketing.local\",\n    \"password\": \"ChangeMe123!\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -46,7 +46,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"email\": \"organizer@ticketing.local\",\n    //\"email\": \"customer@ticketing.local\",\n    \"email\": \"customer2@ticketing.local\",\n    //\"email\": \"admin@ticketing.local\",\n    \"password\": \"ChangeMe123!\"\n}",
+              "raw": "{\n    \"email\": \"organizer@ticketing.local\",\n    //\"email\": \"customer@ticketing.local\",\n    //\"email\": \"customer3@ticketing.local\",\n    //\"email\": \"admin@ticketing.local\",\n    \"password\": \"ChangeMe123!\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -71,11 +71,21 @@
         {
           "name": "Refresh Token",
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "POST",
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"email\": \"customer@ticketing.local\",\n    \"password\": \"ChangeMe123!\"\n}",
+              "raw": "{\n    \"refreshToken\": \"{{json_web_token_02ns}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -83,7 +93,7 @@
               }
             },
             "url": {
-              "raw": "localhost:8080/api/auth/login",
+              "raw": "localhost:8080/api/auth/refresh",
               "host": [
                 "localhost"
               ],
@@ -91,7 +101,7 @@
               "path": [
                 "api",
                 "auth",
-                "login"
+                "refresh"
               ]
             }
           },
@@ -240,7 +250,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"title\": \"title2\",\n    \"venue\": \"mainHall\",\n    \"startsAt\": \"2030-06-01T18:00:00Z\",\n    \"endsAt\": \"2030-06-01T19:00:00Z\",\n    \"capacity\": 100\n}",
+              "raw": "{\n    \"title\": \"title304\",\n    \"venue\": \"mainHall\",\n    \"startsAt\": \"2030-06-01T18:00:00Z\",\n    \"endsAt\": \"2030-06-01T19:00:00Z\",\n    \"capacity\": 100\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -248,7 +258,7 @@
               }
             },
             "url": {
-              "raw": "localhost:8080/api/events/951",
+              "raw": "localhost:8080/api/events/1002",
               "host": [
                 "localhost"
               ],
@@ -256,7 +266,7 @@
               "path": [
                 "api",
                 "events",
-                "951"
+                "1002"
               ]
             }
           },
@@ -278,7 +288,7 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "localhost:8080/api/events/1000/publish",
+              "raw": "localhost:8080/api/events/1002/publish",
               "host": [
                 "localhost"
               ],
@@ -286,7 +296,7 @@
               "path": [
                 "api",
                 "events",
-                "1000",
+                "1002",
                 "publish"
               ]
             }
@@ -309,7 +319,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "localhost:8080/api/events/1000",
+              "raw": "localhost:8080/api/events/1002",
               "host": [
                 "localhost"
               ],
@@ -317,7 +327,7 @@
               "path": [
                 "api",
                 "events",
-                "1000"
+                "1002"
               ]
             }
           },
@@ -411,7 +421,7 @@
             "header": [
               {
                 "key": "Idempotency-Key",
-                "value": "550e8400-e29b-41d4-a716-446655440011",
+                "value": "550e8400-e29b-41d4-a716-446655440009",
                 "type": "text"
               }
             ],
@@ -425,7 +435,7 @@
               }
             },
             "url": {
-              "raw": "localhost:8080/api/events/1000/reservations",
+              "raw": "localhost:8080/api/events/1002/reservations",
               "host": [
                 "localhost"
               ],
@@ -433,7 +443,7 @@
               "path": [
                 "api",
                 "events",
-                "1000",
+                "1002",
                 "reservations"
               ]
             }
@@ -557,6 +567,10 @@
     },
     {
       "key": "json_web_token_0hb7",
+      "secret": true
+    },
+    {
+      "key": "json_web_token_02ns",
       "secret": true
     }
   ]

@@ -29,12 +29,12 @@ model, and persistence code together.
 
 ```text
 com.mbi.ticketingreservation
-├── auth
-├── event
-├── reservation
-├── idempotency
 ├── audit
-└── common
+├── auth
+├── common
+├── event
+├── idempotency
+└── reservation
 ```
 
 Within a feature:
@@ -93,16 +93,16 @@ A new reservation starts as `PENDING` and immediately holds its seats. Confirmin
 `CONFIRMED`; cancelling a pending or confirmed reservation releases its seats from the active capacity calculation.
 
 For concurrent creation requests, the event row is held with a pessimistic write lock until the reservation transaction
-commits or rolls back. Capacity counts only `PENDING` and `CONFIRMED` reservations. to see test
-cases: [OversellingPreventionIntegrationTest.java](src/test/java/com/mbi/ticketingreservation/dataintegrationtests/OversellingPreventionIntegrationTest.java)
+commits or rolls back. Capacity counts only `PENDING` and `CONFIRMED` reservations. See the test cases in
+[OversellingPreventionIntegrationTest.java](src/test/java/com/mbi/ticketingreservation/dataintegrationtests/OversellingPreventionIntegrationTest.java).
 
 ## Idempotency
 
 Reservation creation requires an `Idempotency-Key` header containing a valid UUIDv4.
 The first request claims the key in the same transaction as the reservation and audit record. Reusing a non-expired
 key returns `409 IDEMPOTENCY_KEY_REUSED`, including when the payload is identical. Expired records are physically
-replaced; response bodies are not stored or replayed. too see
-tests: [IdempotencyIntegrationTest.java](src/test/java/com/mbi/ticketingreservation/dataintegrationtests/IdempotencyIntegrationTest.java)
+replaced; response bodies are not stored or replayed. See
+[IdempotencyIntegrationTest.java](src/test/java/com/mbi/ticketingreservation/dataintegrationtests/IdempotencyIntegrationTest.java) for the relevant tests.
 
 ## API Docs
 
@@ -187,7 +187,7 @@ Run static analysis separately:
 ./gradlew spotbugsMain
 ```
 
-Spotbugs HTML report is generated at `build/reports/spotbugs/main/spotbugs.html`.
+The SpotBugs HTML report is generated at `build/reports/spotbugs/main/spotbugs.html`.
 
 ## Continuous Integration
 
@@ -197,7 +197,7 @@ The GitHub Actions CI workflow https://github.com/mahmutBerat/ticketing-reservat
 - pull requests targeting `main`;
 - manual workflow dispatches.
 
-Sample CI workflow output: https://github.com/mahmutBerat/ticketing-reservation/actions/runs/32005732543
+Sample CI workflow output: https://github.com/mahmutBerat/ticketing-reservation/actions/runs/32015636105
 
 ## Observability
 
@@ -231,8 +231,8 @@ should add the target database driver and profile, set `DB_URL`, `DB_USERNAME`, 
 - **Context:** The features share transactional data and are deployed together.
 - **Decision:** Use one Spring Boot application with feature-first packages.
 - **Alternatives:** Microservices or a technical-layer monolith.
-- **Trade-offs:** Simple deployment and transactions while having compact code base and easier to divide in the future;
-  features cannot scale independently.
+- **Trade-offs:** Simple deployment and transactions with a compact codebase that can be divided more easily in the
+  future; features cannot scale independently.
 
 ### ADR-002: Relational Database as Consistency Source
 
@@ -252,7 +252,7 @@ should add the target database driver and profile, set `DB_URL`, `DB_USERNAME`, 
 ### ADR-004: Database-backed Idempotency
 
 - **Context:** Client retries must not create duplicate reservations.
-- **Decision:** Store UUIDv4 keys and request hashes transactional; reject active key reuse with `409` and do not
+- **Decision:** Store UUIDv4 keys and request hashes transactionally; reject active key reuse with `409` and do not
   replay responses: process at most once.
 - **Alternatives:** Response replay, in-memory keys, or Redis.
 - **Trade-offs:** Durable at-most-once behavior; a lost successful response cannot be recovered by retrying the key.
