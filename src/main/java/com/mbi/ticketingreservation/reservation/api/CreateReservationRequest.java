@@ -1,5 +1,6 @@
 package com.mbi.ticketingreservation.reservation.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -10,6 +11,6 @@ public record CreateReservationRequest(
         @NotNull
         @Positive
         @Max(MAX_SEATS_PER_REQUEST)
-        Integer seats
+        @Schema(example = "2") Integer seats
 ) {
 }

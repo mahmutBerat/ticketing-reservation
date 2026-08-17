@@ -1,23 +1,24 @@
 package com.mbi.ticketingreservation.event.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
 import java.time.Instant;
 
 public record CreateEventRequest(
         @Size(max = 255)
-        String title,
+        @Schema(example = "Summer Concert") String title,
 
         @Size(max = 255)
-        String venue,
+        @Schema(example = "Main Hall") String venue,
 
-        Instant startsAt,
-        Instant endsAt,
+        @Schema(example = "2030-06-01T18:00:00Z") Instant startsAt,
+        @Schema(example = "2030-06-01T20:00:00Z") Instant endsAt,
 
         @NotNull
         @Positive
         @Max(value = 10_000)
-        Integer capacity
+        @Schema(example = "100") Integer capacity
 ) {
 
     @AssertTrue(message = "startsAt must be before endsAt")

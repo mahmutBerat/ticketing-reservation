@@ -96,6 +96,8 @@ Interactive API documentation is available after startup:
 - OpenAPI JSON: <http://localhost:8080/v3/api-docs>
 - Health: <http://localhost:8080/actuator/health>
 
+Use the access token returned by login with Swagger UI's **Authorize** button when calling protected endpoints.
+
 ## Getting Started
 
 ### Prerequisites
