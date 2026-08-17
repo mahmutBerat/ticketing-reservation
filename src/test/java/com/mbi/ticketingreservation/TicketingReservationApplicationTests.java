@@ -1,4 +1,4 @@
-package com.mbi.ticketingreservation.dataintegrationtests;
+package com.mbi.ticketingreservation;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

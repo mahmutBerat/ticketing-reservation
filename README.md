@@ -19,6 +19,7 @@ prevention in a compact modular application.
 - Pessimistic event-row locking during reservation capacity checks without updating the event
 - Optimistic version locking for actual event updates
 - Transactional audit records for event and reservation changes
+- Per-client in-memory rate limiting for API endpoints
 - Health checks, trace correlation, and optional OTLP trace/metrics export
 - Liquibase-managed schema and development seed data
 
@@ -207,24 +208,25 @@ business metrics are not currently implemented.
 
 ## Configuration
 
-| Environment variable          | Default                         | Purpose                                      |
-|-------------------------------|---------------------------------|----------------------------------------------|
-| `DB_URL`                      | `jdbc:h2:file:./data/ticketing` | JDBC connection URL                          |
-| `DB_USERNAME`                 | `sa`                            | Database username                            |
-| `DB_PASSWORD`                 | Empty                           | Database password                            |
-| `LIQUIBASE_CONTEXTS`          | `dev`                           | Active Liquibase contexts                    |
-| `JWT_SECRET`                  | Local development value         | HS256 signing secret; required in production |
-| `OTLP_TRACING_EXPORT_ENABLED` | `false`                         | Enable OTLP trace export                     |
-| `OTLP_METRICS_EXPORT_ENABLED` | `false`                         | Enable OTLP metrics export                   |
+| Environment variable             | Default                         | Purpose                                      |
+|----------------------------------|---------------------------------|----------------------------------------------|
+| `DB_URL`                         | `jdbc:h2:file:./data/ticketing` | JDBC connection URL                          |
+| `DB_USERNAME`                    | `sa`                            | Database username                            |
+| `DB_PASSWORD`                    | Empty                           | Database password                            |
+| `LIQUIBASE_CONTEXTS`             | `dev`                           | Active Liquibase contexts                    |
+| `JWT_SECRET`                     | Local development value         | HS256 signing secret; required in production |
+| `OTLP_TRACING_EXPORT_ENABLED`    | `false`                         | Enable OTLP trace export                     |
+| `OTLP_METRICS_EXPORT_ENABLED`    | `false`                         | Enable OTLP metrics export                   |
+| `RATE_LIMIT_REQUESTS_PER_MINUTE` | `100`                           | Requests allowed per client IP per minute    |
 
 The idempotency-key lifetime is currently configured as `10m` in `application.properties`.
+The rate limiter applies to `/api/**` and returns `429` with a `Retry-After` header when the limit is exceeded.
+Its counters are local to each application instance and reset when the application restarts.
 
 ## Architectural Decisions Records and Production Evolution
 
 The current implementation favors a compact local setup: H2, Liquibase migrations, event-row pessimistic locking, and
-non-replaying idempotency keys. There is no dedicated production profile or PostgreSQL driver yet. A production setup
-should add the target database driver and profile, set `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, and a strong
-`JWT_SECRET`, and use a non-seeding Liquibase context such as `prod`.
+non-replaying idempotency keys. There is no dedicated production profile or PostgreSQL driver yet. 
 
 ### ADR-001: Modular Monolith
 
@@ -257,7 +259,7 @@ should add the target database driver and profile, set `DB_URL`, `DB_USERNAME`, 
 - **Alternatives:** Response replay, in-memory keys, or Redis.
 - **Trade-offs:** Durable at-most-once behavior; a lost successful response cannot be recovered by retrying the key.
 
-### ADR-005: JWT, RBAC, and Ownership
+### ADR-005: Authorization
 
 - **Context:** Roles alone cannot stop users with the same role from modifying each other's resources.
 - **Decision:** Use stateless JWT authentication, endpoint role checks, and service-level ownership checks with admin
@@ -270,7 +272,7 @@ should add the target database driver and profile, set `DB_URL`, `DB_USERNAME`, 
 
 - Support idempotent response replay instead of returning HTTP 409 for repeated identical requests. This would simplify
   client-side error handling and allow clients to recover safely when a successful response is lost.
-- Improve API security by adding rate limiting for API endpoints.
+- Replace the per-instance, in-memory API rate limiter with a shared store when the application is scaled horizontally.
 - Migrate the system's persistence layer to PostgreSQL and run integration and concurrency tests against it using
   Testcontainers.
 - Improve observability by adding business metrics for reservation outcomes, capacity usage, and lock contention.
