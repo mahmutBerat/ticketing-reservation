@@ -225,7 +225,8 @@ class OversellingPreventionIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(eventUpdateBody(5)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.capacity").value(5));
+                .andExpect(jsonPath("$.capacity").value(5))
+                .andExpect(jsonPath("$.activeReservedSeats").value(5));
     }
 
     @Test

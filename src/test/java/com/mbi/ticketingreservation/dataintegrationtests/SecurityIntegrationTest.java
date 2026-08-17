@@ -4,6 +4,7 @@ import com.mbi.ticketingreservation.audit.persistence.AuditLogRepository;
 import com.mbi.ticketingreservation.event.domain.Event;
 import com.mbi.ticketingreservation.event.persistence.EventRepository;
 import com.mbi.ticketingreservation.idempotency.persistence.IdempotencyKeyRepository;
+import com.mbi.ticketingreservation.reservation.domain.Reservation;
 import com.mbi.ticketingreservation.reservation.persistence.ReservationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -112,6 +114,24 @@ class SecurityIntegrationTest {
                         .content(eventBody(20)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.capacity").value(20));
+    }
+
+    @Test
+    void publicEventResponseIncludesPendingAndConfirmedReservedSeats() throws Exception {
+        Event event = createPublishedEvent();
+        Reservation pending = new Reservation(event.getId(), CUSTOMER_ID, 2);
+        Reservation confirmed = new Reservation(event.getId(), CUSTOMER_ID, 3);
+        confirmed.confirm();
+        Reservation cancelled = new Reservation(event.getId(), CUSTOMER_ID, 4);
+        cancelled.cancel();
+        reservationRepository.saveAllAndFlush(List.of(pending, confirmed, cancelled));
+
+        mockMvc.perform(get("/api/events/public"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].activeReservedSeats").value(5))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     private Event createPublishedEvent() {

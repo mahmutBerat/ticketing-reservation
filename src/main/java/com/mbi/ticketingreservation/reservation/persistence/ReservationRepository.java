@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
+import java.util.List;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
@@ -22,4 +23,21 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
             @Param("eventId") Long eventId,
             @Param("statuses") Collection<ReservationStatus> statuses);
 
+    @Query("""
+            select reservation.eventId as eventId, sum(reservation.seats) as activeReservedSeats
+            from Reservation reservation
+            where reservation.eventId in :eventIds
+              and reservation.status in :statuses
+            group by reservation.eventId
+            """)
+    List<ActiveReservedSeats> sumSeatsByEventIdsAndStatuses(
+            @Param("eventIds") Collection<Long> eventIds,
+            @Param("statuses") Collection<ReservationStatus> statuses);
+
+    interface ActiveReservedSeats {
+
+        Long getEventId();
+
+        long getActiveReservedSeats();
+    }
 }

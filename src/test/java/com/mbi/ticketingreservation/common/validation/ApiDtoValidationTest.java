@@ -101,6 +101,13 @@ class ApiDtoValidationTest {
     }
 
     @Test
+    void validatesPublicEventPaginationBounds() {
+        PublicEventQuery query = new PublicEventQuery(null, null, null, -1, 101);
+
+        assertEquals(Set.of("page", "size"), violatedProperties(query));
+    }
+
+    @Test
     void acceptsPublicEventQueryWithAnOpenOrEqualDateRange() {
         Instant from = Instant.parse("2030-06-01T18:00:00Z");
         Instant to = Instant.parse("2030-06-01T20:00:00Z");
@@ -108,6 +115,8 @@ class ApiDtoValidationTest {
         assertEquals(Set.of(), violatedProperties(new PublicEventQuery(null, to, null)));
         assertEquals(Set.of(), violatedProperties(new PublicEventQuery(from, null, null)));
         assertEquals(Set.of(), violatedProperties(new PublicEventQuery(from, from, null)));
+        assertEquals(PublicEventQuery.DEFAULT_PAGE, new PublicEventQuery(null, null, null).page());
+        assertEquals(PublicEventQuery.DEFAULT_SIZE, new PublicEventQuery(null, null, null).size());
     }
 
     @Test

@@ -29,11 +29,12 @@ class DomainMapperTest {
                 100);
 
         Event event = EVENT_MAPPER.toEntity(request, 2L);
-        var response = EVENT_MAPPER.toResponse(event);
+        var response = EVENT_MAPPER.toResponse(event, 12);
 
         assertEquals(2L, event.getOwnerId());
         assertEquals("Concert", response.title());
         assertEquals(100, response.capacity());
+        assertEquals(12, response.activeReservedSeats());
     }
 
     @Test

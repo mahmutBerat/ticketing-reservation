@@ -13,12 +13,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -62,6 +65,7 @@ class EventServiceTest {
                 auditService,
                 reservationReadService);
         event = event("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100);
+        ReflectionTestUtils.setField(event, "id", EVENT_ID);
     }
 
     @Test
@@ -71,14 +75,14 @@ class EventServiceTest {
 
         when(eventMapper.toEntity(request, OWNER_ID)).thenReturn(event);
         when(eventRepository.saveAndFlush(event)).thenReturn(event);
-        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
+        when(eventMapper.toResponse(event, 0)).thenReturn(expectedResponse);
 
         EventResponse actualResponse = eventService.create(request, OWNER_ID, IP, USER_AGENT);
 
         assertEquals(expectedResponse, actualResponse);
         verify(eventRepository).saveAndFlush(event);
         verify(auditService).saveRecord(OWNER_ID, EventService.EVENT_CREATED, EventService.EVENT_RESOURCE, event.getId(), IP, USER_AGENT);
-        verify(eventMapper).toResponse(event);
+        verify(eventMapper).toResponse(event, 0);
     }
 
     @Test
@@ -90,7 +94,7 @@ class EventServiceTest {
 
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventRepository.saveAndFlush(event)).thenReturn(event);
-        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
+        when(eventMapper.toResponse(event, 0)).thenReturn(expectedResponse);
 
         EventResponse actualResponse = eventService.update(EVENT_ID, request, OWNER_ID, false, IP, USER_AGENT);
 
@@ -110,8 +114,8 @@ class EventServiceTest {
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(reservationReadService.getActiveSeatsForEvent(EVENT_ID)).thenReturn(5L);
         when(eventRepository.saveAndFlush(event)).thenReturn(event);
-        when(eventMapper.toResponse(event)).thenReturn(
-                response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 5, false));
+        when(eventMapper.toResponse(event, 5)).thenReturn(
+                response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 5, false, 5));
 
         eventService.update(EVENT_ID, request, OWNER_ID, false, IP, USER_AGENT);
 
@@ -140,7 +144,7 @@ class EventServiceTest {
 
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
         when(eventRepository.saveAndFlush(event)).thenReturn(event);
-        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
+        when(eventMapper.toResponse(event, 0)).thenReturn(expectedResponse);
 
         EventResponse actualResponse = eventService.publish(EVENT_ID, OWNER_ID, false, IP, USER_AGENT);
 
@@ -153,50 +157,58 @@ class EventServiceTest {
 
     @Test
     void listsOrganizerEvents() {
-        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false);
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false, 4);
 
         when(eventRepository.findAllByOwnerIdOrderByCreatedAtDesc(OWNER_ID)).thenReturn(List.of(event));
-        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
+        when(reservationReadService.getActiveSeatsByEventIds(List.of(EVENT_ID))).thenReturn(Map.of(EVENT_ID, 4L));
+        when(eventMapper.toResponse(event, 4)).thenReturn(expectedResponse);
 
         List<EventResponse> actualResponse = eventService.list(null, OWNER_ID, false);
 
         assertEquals(List.of(expectedResponse), actualResponse);
         verify(eventRepository).findAllByOwnerIdOrderByCreatedAtDesc(OWNER_ID);
-        verify(eventMapper).toResponse(event);
+        verify(eventMapper).toResponse(event, 4);
     }
 
     @Test
     void listsPublicEvents() {
         PublicEventQuery query = new PublicEventQuery(Instant.parse("2030-01-01T00:00:00Z"), Instant.parse("2031-01-01T00:00:00Z"),
-                "  concert  ");
-        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false);
+                "  concert  ", 2, 10);
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false, 4);
         Specification<Event> expectedSpecification = (root, criteriaQuery, criteriaBuilder) ->
                 criteriaBuilder.conjunction();
-        Sort expectedSort = Sort.by(Sort.Direction.ASC, "startsAt");
+        PageRequest expectedPage = PageRequest.of(2, 10, Sort.by(Sort.Direction.ASC, "startsAt"));
 
         when(eventSpecifications.getDateAndQueryCriteria(query.from(), query.to(), "concert"))
                 .thenReturn(expectedSpecification);
-        when(eventRepository.findAll(expectedSpecification, expectedSort)).thenReturn(List.of(event));
-        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
+        when(eventRepository.findAll(expectedSpecification, expectedPage))
+                .thenReturn(new PageImpl<>(List.of(event), expectedPage, 21));
+        when(reservationReadService.getActiveSeatsByEventIds(List.of(EVENT_ID))).thenReturn(Map.of(EVENT_ID, 4L));
+        when(eventMapper.toResponse(event, 4)).thenReturn(expectedResponse);
 
-        List<EventResponse> actualResponse = eventService.listPublic(query);
+        PageResponse<EventResponse> actualResponse = eventService.listPublic(query);
 
-        assertEquals(List.of(expectedResponse), actualResponse);
+        assertEquals(List.of(expectedResponse), actualResponse.content());
+        assertEquals(2, actualResponse.page());
+        assertEquals(10, actualResponse.size());
+        assertEquals(21, actualResponse.totalElements());
+        assertEquals(3, actualResponse.totalPages());
         verify(eventSpecifications).getDateAndQueryCriteria(query.from(), query.to(), "concert");
-        verify(eventRepository).findAll(expectedSpecification, expectedSort);
-        verify(eventMapper).toResponse(event);
+        verify(eventRepository).findAll(expectedSpecification, expectedPage);
+        verify(eventMapper).toResponse(event, 4);
     }
 
     @Test
     void getsEventByIdForOwner() {
-        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false);
+        EventResponse expectedResponse = response("Concert", "Main Hall", STARTS_AT, ENDS_AT, 100, false, 4);
         when(eventRepository.findById(EVENT_ID)).thenReturn(Optional.of(event));
-        when(eventMapper.toResponse(event)).thenReturn(expectedResponse);
+        when(reservationReadService.getActiveSeatsForEvent(EVENT_ID)).thenReturn(4L);
+        when(eventMapper.toResponse(event, 4)).thenReturn(expectedResponse);
 
         EventResponse actualResponse = eventService.getById(EVENT_ID, OWNER_ID, false);
 
         assertEquals(expectedResponse, actualResponse);
-        verify(eventMapper).toResponse(event);
+        verify(eventMapper).toResponse(event, 4);
     }
 
     @Test
@@ -241,6 +253,19 @@ class EventServiceTest {
     }
 
     private EventResponse response(String title, String venue, Instant startsAt, Instant endsAt, int capacity, boolean published) {
-        return new EventResponse(null, OWNER_ID, title, venue, startsAt, endsAt, capacity, published, 0, null);
+        return response(title, venue, startsAt, endsAt, capacity, published, 0);
+    }
+
+    private EventResponse response(
+            String title,
+            String venue,
+            Instant startsAt,
+            Instant endsAt,
+            int capacity,
+            boolean published,
+            long activeReservedSeats
+    ) {
+        return new EventResponse(
+                null, OWNER_ID, title, venue, startsAt, endsAt, capacity, activeReservedSeats, published, 0, null);
     }
 }

@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/events/public")
 @RequiredArgsConstructor
@@ -24,9 +22,10 @@ public class DiscoveryController {
     @Operation(
             summary = "Search published events",
             description = "Returns published events ordered by start time. Optionally filters by an inclusive "
-                    + "start-time range (`from` and `to`) and a case-insensitive title or venue search (`q`)."
+                    + "start-time range (`from` and `to`) and a case-insensitive title or venue search (`q`). "
+                    + "Pagination is zero-based and defaults to page 0 with 20 events per page."
     )
-    public List<EventResponse> listPublic(@Valid @ModelAttribute PublicEventQuery query) {
+    public PageResponse<EventResponse> listPublic(@Valid @ModelAttribute PublicEventQuery query) {
         return eventService.listPublic(query);
     }
 }

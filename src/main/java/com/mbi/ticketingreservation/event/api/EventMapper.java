@@ -16,5 +16,6 @@ public interface EventMapper {
     @Mapping(target = "capacity", source = "request.capacity")
     Event toEntity(CreateEventRequest request, Long ownerId);
 
-    EventResponse toResponse(Event event);
+    @Mapping(target = "activeReservedSeats", source = "activeReservedSeats")
+    EventResponse toResponse(Event event, long activeReservedSeats);
 }
