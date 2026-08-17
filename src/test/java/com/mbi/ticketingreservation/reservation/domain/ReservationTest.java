@@ -36,6 +36,15 @@ class ReservationTest {
     }
 
     @Test
+    void alreadyCancelledReservationCannotBeCancelledAgain() {
+        Reservation reservation = reservation(1);
+        reservation.cancel();
+
+        assertThrows(InvalidReservationStateException.class, reservation::cancel);
+        assertEquals(ReservationStatus.CANCELLED, reservation.getStatus());
+    }
+
+    @Test
     void cancelledReservationCannotBeConfirmed() {
         Reservation reservation = reservation(1);
         reservation.cancel();

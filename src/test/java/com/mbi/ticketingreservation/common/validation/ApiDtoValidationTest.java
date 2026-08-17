@@ -55,6 +55,19 @@ class ApiDtoValidationTest {
     }
 
     @Test
+    void acceptsCreateEventWithAnOpenOrOrderedDateRange() {
+        Instant startsAt = Instant.parse("2030-06-01T18:00:00Z");
+        Instant endsAt = Instant.parse("2030-06-01T20:00:00Z");
+
+        assertEquals(Set.of(), violatedProperties(
+                new CreateEventRequest("Concert", "Main Hall", null, endsAt, 10)));
+        assertEquals(Set.of(), violatedProperties(
+                new CreateEventRequest("Concert", "Main Hall", startsAt, null, 10)));
+        assertEquals(Set.of(), violatedProperties(
+                new CreateEventRequest("Concert", "Main Hall", startsAt, endsAt, 10)));
+    }
+
+    @Test
     void validatesEventUpdateCapacityAndDateRange() {
         UpdateEventRequest request = new UpdateEventRequest(
                 "Concert",
@@ -67,6 +80,17 @@ class ApiDtoValidationTest {
     }
 
     @Test
+    void acceptsEventUpdateWithAnOpenDateRange() {
+        Instant startsAt = Instant.parse("2030-06-01T18:00:00Z");
+        Instant endsAt = Instant.parse("2030-06-01T20:00:00Z");
+
+        assertEquals(Set.of(), violatedProperties(
+                new UpdateEventRequest("Concert", "Main Hall", null, endsAt, 10)));
+        assertEquals(Set.of(), violatedProperties(
+                new UpdateEventRequest("Concert", "Main Hall", startsAt, null, 10)));
+    }
+
+    @Test
     void validatesPublicEventQueryDateRangeAndTextLength() {
         PublicEventQuery query = new PublicEventQuery(
                 Instant.parse("2030-06-01T20:00:00Z"),
@@ -74,6 +98,16 @@ class ApiDtoValidationTest {
                 "q".repeat(256));
 
         assertEquals(Set.of("dateRangeValid", "q"), violatedProperties(query));
+    }
+
+    @Test
+    void acceptsPublicEventQueryWithAnOpenOrEqualDateRange() {
+        Instant from = Instant.parse("2030-06-01T18:00:00Z");
+        Instant to = Instant.parse("2030-06-01T20:00:00Z");
+
+        assertEquals(Set.of(), violatedProperties(new PublicEventQuery(null, to, null)));
+        assertEquals(Set.of(), violatedProperties(new PublicEventQuery(from, null, null)));
+        assertEquals(Set.of(), violatedProperties(new PublicEventQuery(from, from, null)));
     }
 
     @Test

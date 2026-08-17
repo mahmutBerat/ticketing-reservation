@@ -1,4 +1,4 @@
-package com.mbi.ticketingreservation;
+package com.mbi.ticketingreservation.dataintegrationtests;
 
 import com.mbi.ticketingreservation.audit.persistence.AuditLogRepository;
 import com.mbi.ticketingreservation.auth.domain.Role;
