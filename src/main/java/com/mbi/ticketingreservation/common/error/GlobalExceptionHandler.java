@@ -13,12 +13,13 @@ import com.mbi.ticketingreservation.reservation.application.*;
 import com.mbi.ticketingreservation.reservation.domain.InvalidReservationStateException;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
@@ -29,6 +30,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -221,25 +224,21 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> handleMalformedRequest() {
-        return errorResponse(
-                HttpStatus.BAD_REQUEST,
-                ApiError.MALFORMED_REQUEST,
-                "Request body is malformed",
-                List.of());
+        return errorResponse(HttpStatus.BAD_REQUEST, ApiError.MALFORMED_REQUEST,
+                "Request body is malformed", List.of());
     }
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiError> handleUnexpected(Exception exception) {
         String traceId = currentTraceId();
-        log.error("Unexpected request failure traceId={}", traceId, exception);
+        RequestDetails request = currentRequestDetails();
+        log.error("Unexpected request failure method={} path={} status={} code={} traceId={}",
+                request.method(), request.path(), HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                ApiError.INTERNAL_SERVER_ERROR, traceId, exception);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiError(
-                        ApiError.INTERNAL_SERVER_ERROR,
-                        "An unexpected error occurred",
-                        traceId,
-                        Instant.now(),
-                        List.of()));
+                .body(new ApiError(ApiError.INTERNAL_SERVER_ERROR, "An unexpected error occurred", traceId,
+                        Instant.now(), List.of()));
     }
 
     private ResponseEntity<ApiError> errorResponse(
@@ -248,12 +247,28 @@ public class GlobalExceptionHandler {
             String message,
             List<FieldValidationError> fieldErrors
     ) {
+        String traceId = currentTraceId();
+        RequestDetails request = currentRequestDetails();
+        log.warn("Handled request failure method={} path={} status={} code={} traceId={}", request.method(),
+                request.path(), status.value(), code, traceId);
+
         return ResponseEntity.status(status)
-                .body(new ApiError(code, message, currentTraceId(), Instant.now(), fieldErrors));
+                .body(new ApiError(code, message, traceId, Instant.now(), fieldErrors));
     }
 
     private String currentTraceId() {
         Span currentSpan = tracer.currentSpan();
         return currentSpan == null ? TRACE_ID_UNAVAILABLE : currentSpan.context().traceId();
+    }
+
+    private RequestDetails currentRequestDetails() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            HttpServletRequest request = attributes.getRequest();
+            return new RequestDetails(request.getMethod(), request.getRequestURI());
+        }
+        return new RequestDetails("unavailable", "unavailable");
+    }
+
+    private record RequestDetails(String method, String path) {
     }
 }

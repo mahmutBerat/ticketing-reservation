@@ -63,7 +63,7 @@ public class ReservationController {
 
     @PostMapping("/reservations/{reservationId}/confirm")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
-    @Operation(summary = "Confirm a reservation")
+    @Operation(summary = "Confirm a reservation", description = "Returns the current reservation when it is already confirmed")
     public ReservationResponse confirm(@PathVariable Long reservationId, HttpServletRequest httpRequest) {
         SessionUser sessionUser = sessionUserProvider.getSessionUser();
         return reservationService.confirm(
@@ -73,7 +73,7 @@ public class ReservationController {
 
     @PostMapping("/reservations/{reservationId}/cancel")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
-    @Operation(summary = "Cancel a reservation")
+    @Operation(summary = "Cancel a reservation", description = "Returns the current reservation when it is already cancelled")
     public ReservationResponse cancel(@PathVariable Long reservationId, HttpServletRequest httpRequest) {
         SessionUser sessionUser = sessionUserProvider.getSessionUser();
         return reservationService.cancel(reservationId, sessionUser.userId(), sessionUser.isAdmin(),

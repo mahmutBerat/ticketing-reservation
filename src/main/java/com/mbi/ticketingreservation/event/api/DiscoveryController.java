@@ -21,7 +21,11 @@ public class DiscoveryController {
     private final EventService eventService;
 
     @GetMapping
-    @Operation(summary = "Search published events")
+    @Operation(
+            summary = "Search published events",
+            description = "Returns published events ordered by start time. Optionally filters by an inclusive "
+                    + "start-time range (`from` and `to`) and a case-insensitive title or venue search (`q`)."
+    )
     public List<EventResponse> listPublic(@Valid @ModelAttribute PublicEventQuery query) {
         return eventService.listPublic(query);
     }

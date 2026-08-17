@@ -38,7 +38,7 @@ public class ReservationService {
     static final String RESERVATION_CANCELLED = "RESERVATION_CANCELLED";
     static final String RESERVATION_RESOURCE = "RESERVATION";
     static final String CREATE_ENDPOINT = "/api/events/{eventId}/reservations";
-    private static final Pattern UUID_V4_PATTERN = Pattern.compile(
+    private static final Pattern IDEMPOTENCY_KEY_UUID_V4_PATTERN = Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
 
     private final EventService eventService;
@@ -81,20 +81,26 @@ public class ReservationService {
     public ReservationResponse confirm(Long reservationId, Long userId, boolean admin, String ip, String userAgent) {
         Reservation reservation = getReservationById(reservationId);
         isUserAuthorized(reservation, userId, admin);
-        reservation.confirm();
-        Reservation savedReservation = reservationRepository.saveAndFlush(reservation);
-        auditService.saveRecord(userId, RESERVATION_CONFIRMED, RESERVATION_RESOURCE, reservationId, ip, userAgent);
-        return reservationMapper.toResponse(savedReservation);
+        if (reservation.confirm()) {
+            reservationRepository.saveAndFlush(reservation);
+            auditService.saveRecord(userId, RESERVATION_CONFIRMED, RESERVATION_RESOURCE, reservationId, ip, userAgent);
+        } else {
+            log.debug("Reservation {} is already confirmed; returning its current state", reservationId);
+        }
+        return reservationMapper.toResponse(reservation);
     }
 
     @Transactional
     public ReservationResponse cancel(Long reservationId, Long userId, boolean admin, String ip, String userAgent) {
         Reservation reservation = getReservationById(reservationId);
         isUserAuthorized(reservation, userId, admin);
-        reservation.cancel();
-        Reservation savedReservation = reservationRepository.saveAndFlush(reservation);
-        auditService.saveRecord(userId, RESERVATION_CANCELLED, RESERVATION_RESOURCE, reservationId, ip, userAgent);
-        return reservationMapper.toResponse(savedReservation);
+        if (reservation.cancel()) {
+            reservationRepository.saveAndFlush(reservation);
+            auditService.saveRecord(userId, RESERVATION_CANCELLED, RESERVATION_RESOURCE, reservationId, ip, userAgent);
+        } else {
+            log.debug("Reservation {} is already cancelled; returning its current state", reservationId);
+        }
+        return reservationMapper.toResponse(reservation);
     }
 
     private Reservation getReservationById(Long reservationId) {
@@ -138,7 +144,7 @@ public class ReservationService {
     }
 
     private void validateIdempotencyKey(String value) {
-        if (value == null || !UUID_V4_PATTERN.matcher(value).matches()) {
+        if (value == null || !IDEMPOTENCY_KEY_UUID_V4_PATTERN.matcher(value).matches()) {
             throw new InvalidIdempotencyKeyException();
         }
     }

@@ -48,18 +48,23 @@ public class Reservation extends BaseEntity {
         this.status = ReservationStatus.PENDING;
     }
 
-    public void confirm() {
+    public boolean confirm() {
+        if (status == ReservationStatus.CONFIRMED) {
+            return false;
+        }
         if (status != ReservationStatus.PENDING) {
             throw new InvalidReservationStateException("Only a pending reservation can be confirmed");
         }
         status = ReservationStatus.CONFIRMED;
+        return true;
     }
 
-    public void cancel() {
+    public boolean cancel() {
         if (status == ReservationStatus.CANCELLED) {
-            throw new InvalidReservationStateException("Reservation is already cancelled");
+            return false;
         }
         status = ReservationStatus.CANCELLED;
+        return true;
     }
 
 }
